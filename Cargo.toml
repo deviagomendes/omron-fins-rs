@@ -1,0 +1,19 @@
+[package]
+name = "omron-fins"
+version = "0.1.0"
+edition = "2021"
+description = "Omron FINS protocol implementation for communicating with Omron PLCs"
+license = "MIT"
+repository = "https://github.com/deviagomendes/omron-fins-rs"
+keywords = ["omron", "fins", "plc", "industrial", "automation"]
+categories = ["network-programming", "hardware-support"]
+
+[dependencies]
+thiserror = "2"
+
+[dev-dependencies]
+hex = "0.4"
+
+[lib]
+name = "omron_fins"
+path = "src/lib.rs"
