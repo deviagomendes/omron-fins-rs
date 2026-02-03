@@ -13,7 +13,7 @@ A Rust library for communicating with Omron PLCs using the FINS protocol.
 - **No implicit behavior** — no automatic retry, caching, or reconnection
 - **Complete API** — read, write, fill, run/stop, forced set/reset, transfer, multiple read
 - **Type-safe** — memory areas as `enum`, never strings
-- **Type helpers** — native support for `f32`, `f64`, `i32`
+- **Type helpers** — native support for `f32`, `f64`, `i32`, and ASCII strings
 - **Comprehensive error handling** — no `panic!` in public code
 
 ## Installation
@@ -22,7 +22,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-omron-fins = "0.2.1"
+omron-fins = "0.3.0"
 ```
 
 ## Quick Start
@@ -228,7 +228,35 @@ client.write_f64(MemoryArea::DM, 100, 3.141592653589793)?;
 // i32 (DINT) - 2 words
 let counter: i32 = client.read_i32(MemoryArea::DM, 100)?;
 client.write_i32(MemoryArea::DM, 100, -123456)?;
+
+// String (ASCII) - variable words (2 chars per word)
+client.write_string(MemoryArea::DM, 200, "PRODUCT-001")?;
+let code: String = client.read_string(MemoryArea::DM, 200, 6)?; // 6 words = up to 12 chars
 ```
+
+### Strings
+
+Read and write ASCII strings to PLC memory. Each word stores 2 characters (big-endian).
+
+```rust
+// Write a string to DM100
+client.write_string(MemoryArea::DM, 100, "Hello World")?;
+
+// Read a string from DM100 (10 words = up to 20 characters)
+let message = client.read_string(MemoryArea::DM, 100, 10)?;
+println!("Message: {}", message);
+```
+
+**Parameters:**
+- `area`: Memory area
+- `address`: Starting word address
+- `value` (write): String to write (ASCII, max 1998 characters)
+- `word_count` (read): Number of words to read (1-999)
+
+**Notes:**
+- Strings with odd character count are padded with 0x00
+- Null bytes at the end are automatically trimmed when reading
+- Non-ASCII characters are converted using UTF-8 lossy conversion
 
 ## Advanced Configuration
 

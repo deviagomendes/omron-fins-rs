@@ -900,6 +900,125 @@ impl Client {
         self.write(area, address, &words)
     }
 
+    /// Writes an ASCII string to consecutive words.
+    ///
+    /// Each word stores 2 ASCII characters (big-endian). If the string has an
+    /// odd number of characters, the last byte is padded with 0x00.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to write to
+    /// * `address` - Starting word address
+    /// * `value` - String to write (ASCII only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - String is empty
+    /// - String exceeds 1998 characters (999 words)
+    /// - Communication fails
+    /// - PLC returns an error
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// // Write a product code to DM100
+    /// client.write_string(MemoryArea::DM, 100, "PRODUCT-001").unwrap();
+    /// ```
+    pub fn write_string(&self, area: MemoryArea, address: u16, value: &str) -> Result<()> {
+        use crate::command::MAX_WORDS_PER_COMMAND;
+        use crate::error::FinsError;
+
+        if value.is_empty() {
+            return Err(FinsError::InvalidParameter {
+                parameter: "value".to_string(),
+                reason: "string cannot be empty".to_string(),
+            });
+        }
+
+        let bytes = value.as_bytes();
+        let word_count = (bytes.len() + 1) / 2;
+
+        if word_count > MAX_WORDS_PER_COMMAND as usize {
+            return Err(FinsError::InvalidParameter {
+                parameter: "value".to_string(),
+                reason: format!(
+                    "string too long: {} bytes requires {} words, max is {}",
+                    bytes.len(),
+                    word_count,
+                    MAX_WORDS_PER_COMMAND
+                ),
+            });
+        }
+
+        let words: Vec<u16> = bytes
+            .chunks(2)
+            .map(|chunk| {
+                let high = chunk[0] as u16;
+                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                (high << 8) | low
+            })
+            .collect();
+
+        self.write(area, address, &words)
+    }
+
+    /// Reads an ASCII string from consecutive words.
+    ///
+    /// Each word contains 2 ASCII characters (big-endian). Null bytes (0x00)
+    /// at the end of the string are trimmed.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to read from
+    /// * `address` - Starting word address
+    /// * `word_count` - Number of words to read (1-999)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Word count is 0 or > 999
+    /// - Communication fails
+    /// - PLC returns an error
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// // Read a product code from DM100 (up to 20 characters = 10 words)
+    /// let code = client.read_string(MemoryArea::DM, 100, 10).unwrap();
+    /// println!("Product code: {}", code);
+    /// ```
+    pub fn read_string(&self, area: MemoryArea, address: u16, word_count: u16) -> Result<String> {
+        let words = self.read(area, address, word_count)?;
+
+        let mut bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
+        for word in &words {
+            bytes.push((word >> 8) as u8);
+            bytes.push((word & 0xFF) as u8);
+        }
+
+        // Trim null bytes from the end
+        while bytes.last() == Some(&0) {
+            bytes.pop();
+        }
+
+        Ok(String::from_utf8_lossy(&bytes).to_string())
+    }
+
     /// Returns the source node address.
     pub fn source(&self) -> NodeAddress {
         self.source
@@ -986,5 +1105,95 @@ mod tests {
         let client = Client::new(config).unwrap();
         let debug_str = format!("{:?}", client);
         assert!(debug_str.contains("Client"));
+    }
+
+    #[test]
+    fn test_string_to_words_even_length() {
+        // "Hi" = [0x48, 0x69] -> [0x4869]
+        let s = "Hi";
+        let bytes = s.as_bytes();
+        let words: Vec<u16> = bytes
+            .chunks(2)
+            .map(|chunk| {
+                let high = chunk[0] as u16;
+                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                (high << 8) | low
+            })
+            .collect();
+        assert_eq!(words, vec![0x4869]);
+    }
+
+    #[test]
+    fn test_string_to_words_odd_length() {
+        // "Hello" = [0x48, 0x65, 0x6C, 0x6C, 0x6F] -> [0x4865, 0x6C6C, 0x6F00]
+        let s = "Hello";
+        let bytes = s.as_bytes();
+        let words: Vec<u16> = bytes
+            .chunks(2)
+            .map(|chunk| {
+                let high = chunk[0] as u16;
+                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                (high << 8) | low
+            })
+            .collect();
+        assert_eq!(words, vec![0x4865, 0x6C6C, 0x6F00]);
+    }
+
+    #[test]
+    fn test_words_to_string() {
+        // [0x4865, 0x6C6C, 0x6F00] -> "Hello"
+        let words = vec![0x4865u16, 0x6C6C, 0x6F00];
+        let mut bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
+        for word in &words {
+            bytes.push((word >> 8) as u8);
+            bytes.push((word & 0xFF) as u8);
+        }
+        while bytes.last() == Some(&0) {
+            bytes.pop();
+        }
+        let result = String::from_utf8_lossy(&bytes).to_string();
+        assert_eq!(result, "Hello");
+    }
+
+    #[test]
+    fn test_words_to_string_no_null() {
+        // [0x4869] -> "Hi" (no null padding)
+        let words = vec![0x4869u16];
+        let mut bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
+        for word in &words {
+            bytes.push((word >> 8) as u8);
+            bytes.push((word & 0xFF) as u8);
+        }
+        while bytes.last() == Some(&0) {
+            bytes.pop();
+        }
+        let result = String::from_utf8_lossy(&bytes).to_string();
+        assert_eq!(result, "Hi");
+    }
+
+    #[test]
+    fn test_string_roundtrip() {
+        // Test that string -> words -> string preserves the original
+        let original = "PRODUCT-001";
+        let bytes = original.as_bytes();
+        let words: Vec<u16> = bytes
+            .chunks(2)
+            .map(|chunk| {
+                let high = chunk[0] as u16;
+                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                (high << 8) | low
+            })
+            .collect();
+
+        let mut result_bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
+        for word in &words {
+            result_bytes.push((word >> 8) as u8);
+            result_bytes.push((word & 0xFF) as u8);
+        }
+        while result_bytes.last() == Some(&0) {
+            result_bytes.pop();
+        }
+        let result = String::from_utf8_lossy(&result_bytes).to_string();
+        assert_eq!(result, original);
     }
 }

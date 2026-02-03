@@ -116,6 +116,10 @@
 //! // i32 (DINT) - 2 words
 //! let counter: i32 = client.read_i32(MemoryArea::DM, 100)?;
 //! client.write_i32(MemoryArea::DM, 100, -123456)?;
+//!
+//! // String (ASCII) - variable words (2 chars per word)
+//! client.write_string(MemoryArea::DM, 200, "PRODUCT-001")?;
+//! let code: String = client.read_string(MemoryArea::DM, 200, 6)?;
 //! # Ok::<(), omron_fins::FinsError>(())
 //! ```
 //!
