@@ -1,10 +1,65 @@
-//! FINS client for communicating with Omron PLCs.
+//! High-level FINS client for communicating with Omron PLCs.
+//!
+//! This module provides the [`Client`] struct, which is the primary interface
+//! for communicating with Omron PLCs using the FINS protocol.
+//!
+//! # Overview
+//!
+//! The client provides a high-level API that handles:
+//! - Command construction and serialization
+//! - Request/response correlation via Service ID
+//! - Response parsing and error checking
+//! - Type conversion helpers (f32, f64, i32)
+//!
+//! # Example
+//!
+//! ```no_run
+//! use omron_fins::{Client, ClientConfig, MemoryArea};
+//! use std::net::Ipv4Addr;
+//!
+//! // Create and configure the client
+//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+//! let client = Client::new(config)?;
+//!
+//! // Read data
+//! let data = client.read(MemoryArea::DM, 100, 10)?;
+//!
+//! // Write data
+//! client.write(MemoryArea::DM, 200, &[0x1234, 0x5678])?;
+//!
+//! // Read/write bits
+//! let bit = client.read_bit(MemoryArea::CIO, 0, 5)?;
+//! client.write_bit(MemoryArea::CIO, 0, 5, true)?;
+//!
+//! // Read/write typed values
+//! let temp: f32 = client.read_f32(MemoryArea::DM, 100)?;
+//! client.write_f32(MemoryArea::DM, 100, 25.5)?;
+//! # Ok::<(), omron_fins::FinsError>(())
+//! ```
+//!
+//! # Configuration
+//!
+//! The [`ClientConfig`] struct allows customization of:
+//! - PLC IP address and port
+//! - Communication timeout
+//! - Source and destination node addresses
+//! - Network addressing for multi-network setups
+//!
+//! # Thread Safety
+//!
+//! The `Client` uses an atomic counter for Service IDs, making it safe to share
+//! between threads. However, the underlying UDP socket operations are synchronous
+//! and will block.
 
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
-use crate::command::{ReadBitCommand, ReadWordCommand, WriteBitCommand, WriteWordCommand};
+use crate::command::{
+    FillCommand, ForcedBit, ForcedSetResetCancelCommand, ForcedSetResetCommand, MultiReadSpec,
+    MultipleReadCommand, PlcMode, ReadBitCommand, ReadWordCommand, RunCommand, StopCommand,
+    TransferCommand, WriteBitCommand, WriteWordCommand,
+};
 use crate::error::Result;
 use crate::header::NodeAddress;
 use crate::memory::MemoryArea;
@@ -350,6 +405,499 @@ impl Client {
         response.check_sid(sid)?;
         response.check_error()?;
         Ok(())
+    }
+
+    /// Fills a memory area with a single value.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to fill
+    /// * `address` - Starting word address
+    /// * `count` - Number of words to fill (1-999)
+    /// * `value` - Value to fill with
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Count is 0 or > 999
+    /// - Communication fails
+    /// - PLC returns an error
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// // Zero out DM100-DM149
+    /// client.fill(MemoryArea::DM, 100, 50, 0x0000).unwrap();
+    /// ```
+    pub fn fill(&self, area: MemoryArea, address: u16, count: u16, value: u16) -> Result<()> {
+        let sid = self.next_sid();
+        let cmd = FillCommand::new(
+            self.destination,
+            self.source,
+            sid,
+            area,
+            address,
+            count,
+            value,
+        )?;
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        Ok(())
+    }
+
+    /// Puts the PLC into run mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - PLC operating mode (Debug, Monitor, or Run)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, PlcMode};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.run(PlcMode::Monitor).unwrap();
+    /// ```
+    pub fn run(&self, mode: PlcMode) -> Result<()> {
+        let sid = self.next_sid();
+        let cmd = RunCommand::new(self.destination, self.source, sid, mode);
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        Ok(())
+    }
+
+    /// Stops the PLC.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.stop().unwrap();
+    /// ```
+    pub fn stop(&self) -> Result<()> {
+        let sid = self.next_sid();
+        let cmd = StopCommand::new(self.destination, self.source, sid);
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        Ok(())
+    }
+
+    /// Transfers data from one memory area to another within the PLC.
+    ///
+    /// # Arguments
+    ///
+    /// * `src_area` - Source memory area
+    /// * `src_address` - Source starting address
+    /// * `dst_area` - Destination memory area
+    /// * `dst_address` - Destination starting address
+    /// * `count` - Number of words to transfer (1-999)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Count is 0 or > 999
+    /// - Communication fails
+    /// - PLC returns an error
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// // Copy DM100-DM109 to DM200-DM209
+    /// client.transfer(MemoryArea::DM, 100, MemoryArea::DM, 200, 10).unwrap();
+    /// ```
+    pub fn transfer(
+        &self,
+        src_area: MemoryArea,
+        src_address: u16,
+        dst_area: MemoryArea,
+        dst_address: u16,
+        count: u16,
+    ) -> Result<()> {
+        let sid = self.next_sid();
+        let cmd = TransferCommand::new(
+            self.destination,
+            self.source,
+            sid,
+            src_area,
+            src_address,
+            dst_area,
+            dst_address,
+            count,
+        )?;
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        Ok(())
+    }
+
+    /// Forces bits ON/OFF in the PLC, overriding normal program control.
+    ///
+    /// # Arguments
+    ///
+    /// * `specs` - List of bits to force with their specifications
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Specs is empty
+    /// - Any area doesn't support bit access
+    /// - Any bit position > 15
+    /// - Communication fails
+    /// - PLC returns an error
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, ForcedBit, ForceSpec, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.forced_set_reset(&[
+    ///     ForcedBit { area: MemoryArea::CIO, address: 0, bit: 0, spec: ForceSpec::ForceOn },
+    ///     ForcedBit { area: MemoryArea::CIO, address: 0, bit: 1, spec: ForceSpec::ForceOff },
+    /// ]).unwrap();
+    /// ```
+    pub fn forced_set_reset(&self, specs: &[ForcedBit]) -> Result<()> {
+        let sid = self.next_sid();
+        let cmd = ForcedSetResetCommand::new(self.destination, self.source, sid, specs.to_vec())?;
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes()?)?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        Ok(())
+    }
+
+    /// Cancels all forced bits in the PLC.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.forced_set_reset_cancel().unwrap();
+    /// ```
+    pub fn forced_set_reset_cancel(&self) -> Result<()> {
+        let sid = self.next_sid();
+        let cmd = ForcedSetResetCancelCommand::new(self.destination, self.source, sid);
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        Ok(())
+    }
+
+    /// Reads from multiple memory areas in a single request.
+    ///
+    /// # Arguments
+    ///
+    /// * `specs` - List of read specifications
+    ///
+    /// # Returns
+    ///
+    /// A vector of u16 values in the same order as the specs.
+    /// For word reads, the full u16 value is returned.
+    /// For bit reads, 0x0000 (OFF) or 0x0001 (ON) is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Specs is empty
+    /// - Any bit area doesn't support bit access
+    /// - Any bit position > 15
+    /// - Communication fails
+    /// - PLC returns an error
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MultiReadSpec, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// let values = client.read_multiple(&[
+    ///     MultiReadSpec { area: MemoryArea::DM, address: 100, bit: None },
+    ///     MultiReadSpec { area: MemoryArea::DM, address: 200, bit: None },
+    ///     MultiReadSpec { area: MemoryArea::CIO, address: 0, bit: Some(5) },
+    /// ]).unwrap();
+    /// // values[0] = DM100, values[1] = DM200, values[2] = CIO0.05 (0 or 1)
+    /// ```
+    pub fn read_multiple(&self, specs: &[MultiReadSpec]) -> Result<Vec<u16>> {
+        let sid = self.next_sid();
+        let cmd = MultipleReadCommand::new(self.destination, self.source, sid, specs.to_vec())?;
+
+        let response_bytes = self.transport.send_receive(&cmd.to_bytes()?)?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        response.check_sid(sid)?;
+        response.check_error()?;
+        response.to_words()
+    }
+
+    /// Reads an f32 (REAL) value from 2 consecutive words.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to read from
+    /// * `address` - Starting word address
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// let temperature: f32 = client.read_f32(MemoryArea::DM, 100).unwrap();
+    /// ```
+    pub fn read_f32(&self, area: MemoryArea, address: u16) -> Result<f32> {
+        let words = self.read(area, address, 2)?;
+        let bytes = [
+            (words[0] >> 8) as u8,
+            (words[0] & 0xFF) as u8,
+            (words[1] >> 8) as u8,
+            (words[1] & 0xFF) as u8,
+        ];
+        Ok(f32::from_be_bytes(bytes))
+    }
+
+    /// Writes an f32 (REAL) value to 2 consecutive words.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to write to
+    /// * `address` - Starting word address
+    /// * `value` - f32 value to write
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.write_f32(MemoryArea::DM, 100, 3.14159).unwrap();
+    /// ```
+    pub fn write_f32(&self, area: MemoryArea, address: u16, value: f32) -> Result<()> {
+        let bytes = value.to_be_bytes();
+        let words = [
+            u16::from_be_bytes([bytes[0], bytes[1]]),
+            u16::from_be_bytes([bytes[2], bytes[3]]),
+        ];
+        self.write(area, address, &words)
+    }
+
+    /// Reads an f64 (LREAL) value from 4 consecutive words.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to read from
+    /// * `address` - Starting word address
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// let value: f64 = client.read_f64(MemoryArea::DM, 100).unwrap();
+    /// ```
+    pub fn read_f64(&self, area: MemoryArea, address: u16) -> Result<f64> {
+        let words = self.read(area, address, 4)?;
+        let bytes = [
+            (words[0] >> 8) as u8,
+            (words[0] & 0xFF) as u8,
+            (words[1] >> 8) as u8,
+            (words[1] & 0xFF) as u8,
+            (words[2] >> 8) as u8,
+            (words[2] & 0xFF) as u8,
+            (words[3] >> 8) as u8,
+            (words[3] & 0xFF) as u8,
+        ];
+        Ok(f64::from_be_bytes(bytes))
+    }
+
+    /// Writes an f64 (LREAL) value to 4 consecutive words.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to write to
+    /// * `address` - Starting word address
+    /// * `value` - f64 value to write
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.write_f64(MemoryArea::DM, 100, 3.141592653589793).unwrap();
+    /// ```
+    pub fn write_f64(&self, area: MemoryArea, address: u16, value: f64) -> Result<()> {
+        let bytes = value.to_be_bytes();
+        let words = [
+            u16::from_be_bytes([bytes[0], bytes[1]]),
+            u16::from_be_bytes([bytes[2], bytes[3]]),
+            u16::from_be_bytes([bytes[4], bytes[5]]),
+            u16::from_be_bytes([bytes[6], bytes[7]]),
+        ];
+        self.write(area, address, &words)
+    }
+
+    /// Reads an i32 (DINT) value from 2 consecutive words.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to read from
+    /// * `address` - Starting word address
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// let counter: i32 = client.read_i32(MemoryArea::DM, 100).unwrap();
+    /// ```
+    pub fn read_i32(&self, area: MemoryArea, address: u16) -> Result<i32> {
+        let words = self.read(area, address, 2)?;
+        let bytes = [
+            (words[0] >> 8) as u8,
+            (words[0] & 0xFF) as u8,
+            (words[1] >> 8) as u8,
+            (words[1] & 0xFF) as u8,
+        ];
+        Ok(i32::from_be_bytes(bytes))
+    }
+
+    /// Writes an i32 (DINT) value to 2 consecutive words.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to write to
+    /// * `address` - Starting word address
+    /// * `value` - i32 value to write
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or PLC returns an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::{Client, ClientConfig, MemoryArea};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let client = Client::new(ClientConfig::new(
+    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    /// )).unwrap();
+    ///
+    /// client.write_i32(MemoryArea::DM, 100, -123456).unwrap();
+    /// ```
+    pub fn write_i32(&self, area: MemoryArea, address: u16, value: i32) -> Result<()> {
+        let bytes = value.to_be_bytes();
+        let words = [
+            u16::from_be_bytes([bytes[0], bytes[1]]),
+            u16::from_be_bytes([bytes[2], bytes[3]]),
+        ];
+        self.write(area, address, &words)
     }
 
     /// Returns the source node address.

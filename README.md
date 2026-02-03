@@ -1,23 +1,24 @@
 # omron-fins
 
-Uma biblioteca Rust para comunicação com CLPs Omron usando o protocolo FINS.
+A Rust library for communicating with Omron PLCs using the FINS protocol.
 
 [![Crates.io](https://img.shields.io/crates/v/omron-fins.svg)](https://crates.io/crates/omron-fins)
 [![Documentation](https://docs.rs/omron-fins/badge.svg)](https://docs.rs/omron-fins)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Características
+## Features
 
-- **Biblioteca de protocolo puro** — sem lógica de negócio, polling ou schedulers
-- **Execução determinística** — cada chamada produz exatamente 1 requisição e 1 resposta
-- **Sem comportamento implícito** — sem retry automático, cache ou reconexão
-- **API simples e previsível** — `read`, `write`, `read_bit`, `write_bit`
-- **Tipos seguros** — áreas de memória como `enum`, nunca strings
-- **Tratamento de erros completo** — sem `panic!` em código público
+- **Protocol-only library** — no business logic, polling, or schedulers
+- **Deterministic execution** — each call produces exactly 1 request and 1 response
+- **No implicit behavior** — no automatic retry, caching, or reconnection
+- **Complete API** — read, write, fill, run/stop, forced set/reset, transfer, multiple read
+- **Type-safe** — memory areas as `enum`, never strings
+- **Type helpers** — native support for `f32`, `f64`, `i32`
+- **Comprehensive error handling** — no `panic!` in public code
 
-## Instalação
+## Installation
 
-Adicione ao seu `Cargo.toml`:
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -31,107 +32,207 @@ use omron_fins::{Client, ClientConfig, MemoryArea};
 use std::net::Ipv4Addr;
 
 fn main() -> omron_fins::Result<()> {
-    // Cria a configuração do cliente
+    // Create client configuration
     let config = ClientConfig::new(
-        Ipv4Addr::new(192, 168, 1, 10),  // IP do CLP
-        1,                                // Node de origem (este cliente)
-        10,                               // Node de destino (o CLP)
+        Ipv4Addr::new(192, 168, 1, 10),  // PLC IP address
+        1,                                // Source node (this client)
+        10,                               // Destination node (the PLC)
     );
 
-    // Conecta ao CLP
+    // Connect to the PLC
     let client = Client::new(config)?;
 
-    // Lê 10 words a partir de DM100
+    // Read 10 words starting from DM100
     let data = client.read(MemoryArea::DM, 100, 10)?;
-    println!("Dados lidos: {:?}", data);
+    println!("Data read: {:?}", data);
 
-    // Escreve valores em DM200
+    // Write values to DM200
     client.write(MemoryArea::DM, 200, &[0x1234, 0x5678])?;
 
-    // Lê um bit específico (CIO 0.05)
+    // Read a specific bit (CIO 0.05)
     let bit = client.read_bit(MemoryArea::CIO, 0, 5)?;
     println!("CIO 0.05 = {}", bit);
 
-    // Escreve um bit
+    // Write a bit
     client.write_bit(MemoryArea::CIO, 0, 5, true)?;
 
     Ok(())
 }
 ```
 
-## Áreas de Memória
+## Memory Areas
 
-A biblioteca suporta as seguintes áreas de memória:
+The library supports the following memory areas:
 
-| Área | Nome | Descrição | Acesso a Word | Acesso a Bit |
-|------|------|-----------|:-------------:|:------------:|
-| `CIO` | Core I/O | Entradas/saídas e relés internos | ✅ | ✅ |
-| `WR` | Work | Bits/words de trabalho temporário | ✅ | ✅ |
-| `HR` | Holding | Bits/words retentivos | ✅ | ✅ |
-| `DM` | Data Memory | Armazenamento de dados numéricos | ✅ | ❌ |
+| Area | Name | Description | Word Access | Bit Access |
+|------|------|-------------|:-----------:|:----------:|
+| `CIO` | Core I/O | Inputs/outputs and internal relays | ✓ | ✓ |
+| `WR` | Work | Temporary work bits/words | ✓ | ✓ |
+| `HR` | Holding | Retentive bits/words | ✓ | ✓ |
+| `DM` | Data Memory | Numeric data storage | ✓ | ✗ |
+| `AR` | Auxiliary | System status and control | ✓ | ✓ |
 
 ```rust
 use omron_fins::MemoryArea;
 
-// Verificar se uma área suporta acesso a bit
+// Check if an area supports bit access
 assert!(MemoryArea::CIO.supports_bit_access());
 assert!(!MemoryArea::DM.supports_bit_access());
 ```
 
-## API
+## API Reference
 
-### Leitura de Words
+### Reading Words
 
 ```rust
-// Lê 'count' words a partir de 'address'
+// Read 'count' words starting from 'address'
 let data: Vec<u16> = client.read(area, address, count)?;
 ```
 
-**Parâmetros:**
-- `area`: Área de memória (`MemoryArea::DM`, `CIO`, `WR`, `HR`)
-- `address`: Endereço inicial (0-65535)
-- `count`: Quantidade de words a ler (1-999)
+**Parameters:**
+- `area`: Memory area (`MemoryArea::DM`, `CIO`, `WR`, `HR`, `AR`)
+- `address`: Starting address (0-65535)
+- `count`: Number of words to read (1-999)
 
-### Escrita de Words
+### Writing Words
 
 ```rust
-// Escreve uma slice de words a partir de 'address'
-client.write(area, address, &[valor1, valor2, ...])?;
+// Write a slice of words starting from 'address'
+client.write(area, address, &[value1, value2, ...])?;
 ```
 
-**Parâmetros:**
-- `area`: Área de memória
-- `address`: Endereço inicial
-- `data`: Slice de words a escrever (1-999 words)
+**Parameters:**
+- `area`: Memory area
+- `address`: Starting address
+- `data`: Slice of words to write (1-999 words)
 
-### Leitura de Bit
+### Reading Bits
 
 ```rust
-// Lê um bit específico
-let valor: bool = client.read_bit(area, address, bit)?;
+// Read a specific bit
+let value: bool = client.read_bit(area, address, bit)?;
 ```
 
-**Parâmetros:**
-- `area`: Área de memória (apenas `CIO`, `WR`, `HR` — DM não suporta)
-- `address`: Endereço do word
-- `bit`: Posição do bit (0-15)
+**Parameters:**
+- `area`: Memory area (only `CIO`, `WR`, `HR`, `AR` — DM not supported)
+- `address`: Word address
+- `bit`: Bit position (0-15)
 
-### Escrita de Bit
+### Writing Bits
 
 ```rust
-// Escreve um bit específico
+// Write a specific bit
 client.write_bit(area, address, bit, value)?;
 ```
 
-**Parâmetros:**
-- `area`: Área de memória (apenas `CIO`, `WR`, `HR`)
-- `address`: Endereço do word
-- `bit`: Posição do bit (0-15)
-- `value`: Valor a escrever (`true` ou `false`)
+**Parameters:**
+- `area`: Memory area (only `CIO`, `WR`, `HR`, `AR`)
+- `address`: Word address
+- `bit`: Bit position (0-15)
+- `value`: Value to write (`true` or `false`)
 
-## Configuração Avançada
+### Fill (Memory Fill)
 
-### Configuração Completa do Cliente
+```rust
+// Fill a memory region with a value
+client.fill(MemoryArea::DM, 100, 50, 0x0000)?; // Zero out DM100-DM149
+```
+
+**Parameters:**
+- `area`: Memory area
+- `address`: Starting address
+- `count`: Number of words to fill (1-999)
+- `value`: Value to repeat
+
+### Run / Stop PLC
+
+```rust
+use omron_fins::PlcMode;
+
+// Put the PLC in run mode
+client.run(PlcMode::Monitor)?;
+
+// Stop the PLC
+client.stop()?;
+```
+
+**Available modes:**
+- `PlcMode::Debug` — step-by-step execution
+- `PlcMode::Monitor` — execution with monitoring
+- `PlcMode::Run` — normal execution
+
+### Memory Transfer
+
+```rust
+// Copy DM100-DM109 to DM200-DM209
+client.transfer(MemoryArea::DM, 100, MemoryArea::DM, 200, 10)?;
+```
+
+**Parameters:**
+- `src_area`: Source area
+- `src_address`: Source address
+- `dst_area`: Destination area
+- `dst_address`: Destination address
+- `count`: Number of words to transfer (1-999)
+
+### Forced Set/Reset
+
+Force bits ON/OFF overriding PLC program (used for maintenance).
+
+```rust
+use omron_fins::{ForcedBit, ForceSpec, MemoryArea};
+
+// Force bits
+client.forced_set_reset(&[
+    ForcedBit { area: MemoryArea::CIO, address: 0, bit: 0, spec: ForceSpec::ForceOn },
+    ForcedBit { area: MemoryArea::CIO, address: 0, bit: 1, spec: ForceSpec::ForceOff },
+])?;
+
+// Cancel all forced bits
+client.forced_set_reset_cancel()?;
+```
+
+**ForceSpec:**
+- `ForceSpec::ForceOn` — force bit ON
+- `ForceSpec::ForceOff` — force bit OFF
+- `ForceSpec::Release` — release forced state
+
+### Multiple Read
+
+Read from multiple areas/addresses in a single request (optimizes communication).
+
+```rust
+use omron_fins::MultiReadSpec;
+
+let values = client.read_multiple(&[
+    MultiReadSpec { area: MemoryArea::DM, address: 100, bit: None },
+    MultiReadSpec { area: MemoryArea::DM, address: 200, bit: None },
+    MultiReadSpec { area: MemoryArea::CIO, address: 0, bit: Some(5) },
+])?;
+// values[0] = DM100, values[1] = DM200, values[2] = CIO0.05 (0 or 1)
+```
+
+### Data Types
+
+Helpers for reading/writing types that span multiple words.
+
+```rust
+// f32 (REAL) - 2 words
+let temp: f32 = client.read_f32(MemoryArea::DM, 100)?;
+client.write_f32(MemoryArea::DM, 100, 3.14159)?;
+
+// f64 (LREAL) - 4 words
+let value: f64 = client.read_f64(MemoryArea::DM, 100)?;
+client.write_f64(MemoryArea::DM, 100, 3.141592653589793)?;
+
+// i32 (DINT) - 2 words
+let counter: i32 = client.read_i32(MemoryArea::DM, 100)?;
+client.write_i32(MemoryArea::DM, 100, -123456)?;
+```
+
+## Advanced Configuration
+
+### Full Client Configuration
 
 ```rust
 use omron_fins::ClientConfig;
@@ -139,39 +240,39 @@ use std::net::Ipv4Addr;
 use std::time::Duration;
 
 let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
-    .with_port(9601)                        // Porta personalizada (padrão: 9600)
-    .with_timeout(Duration::from_secs(5))   // Timeout personalizado (padrão: 2s)
-    .with_source_network(1)                 // Rede de origem
-    .with_source_unit(0)                    // Unidade de origem
-    .with_dest_network(1)                   // Rede de destino
-    .with_dest_unit(0);                     // Unidade de destino
+    .with_port(9601)                        // Custom port (default: 9600)
+    .with_timeout(Duration::from_secs(5))   // Custom timeout (default: 2s)
+    .with_source_network(1)                 // Source network
+    .with_source_unit(0)                    // Source unit
+    .with_dest_network(1)                   // Destination network
+    .with_dest_unit(0);                     // Destination unit
 ```
 
-### Endereçamento de Node
+### Node Addressing
 
-O protocolo FINS usa três componentes para endereçar um node:
+The FINS protocol uses three components to address a node:
 
-| Componente | Descrição | Valor Típico |
-|------------|-----------|--------------|
-| Network | Número da rede | 0 (rede local) |
-| Node | Número do node | 1-126 |
-| Unit | Número da unidade | 0 (CPU) |
+| Component | Description | Typical Value |
+|-----------|-------------|---------------|
+| Network | Network number | 0 (local network) |
+| Node | Node number | 1-126 |
+| Unit | Unit number | 0 (CPU) |
 
-Para comunicação simples na mesma rede, apenas o número do node é necessário:
+For simple communication on the same network, only the node number is required:
 
 ```rust
-// Comunicação local simples
+// Simple local communication
 let config = ClientConfig::new(ip, source_node, dest_node);
 
-// Comunicação entre redes
+// Cross-network communication
 let config = ClientConfig::new(ip, source_node, dest_node)
     .with_source_network(1)
     .with_dest_network(2);
 ```
 
-## Tratamento de Erros
+## Error Handling
 
-Todas as operações retornam `Result<T, FinsError>`. A biblioteca nunca causa `panic!` em código público.
+All operations return `Result<T, FinsError>`. The library never panics in public code.
 
 ```rust
 use omron_fins::{Client, ClientConfig, MemoryArea, FinsError};
@@ -181,43 +282,43 @@ let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
 let client = Client::new(config)?;
 
 match client.read(MemoryArea::DM, 100, 10) {
-    Ok(data) => println!("Dados: {:?}", data),
+    Ok(data) => println!("Data: {:?}", data),
     
     Err(FinsError::Timeout) => {
-        println!("Timeout de comunicação");
+        println!("Communication timeout");
     }
     
     Err(FinsError::PlcError { main_code, sub_code }) => {
-        println!("Erro do CLP: main=0x{:02X}, sub=0x{:02X}", main_code, sub_code);
+        println!("PLC error: main=0x{:02X}, sub=0x{:02X}", main_code, sub_code);
     }
     
     Err(FinsError::InvalidAddressing { reason }) => {
-        println!("Endereçamento inválido: {}", reason);
+        println!("Invalid addressing: {}", reason);
     }
     
     Err(FinsError::InvalidParameter { parameter, reason }) => {
-        println!("Parâmetro inválido '{}': {}", parameter, reason);
+        println!("Invalid parameter '{}': {}", parameter, reason);
     }
     
-    Err(e) => println!("Erro: {}", e),
+    Err(e) => println!("Error: {}", e),
 }
 ```
 
-### Tipos de Erro
+### Error Types
 
-| Erro | Descrição |
-|------|-----------|
-| `PlcError` | Erro retornado pelo CLP (com códigos main/sub) |
-| `Timeout` | Timeout de comunicação |
-| `InvalidAddressing` | Endereçamento inválido (ex: bit access em DM) |
-| `InvalidParameter` | Parâmetro inválido (ex: count = 0) |
-| `InvalidResponse` | Resposta inválida do CLP |
-| `SidMismatch` | Service ID não corresponde entre request/response |
-| `Io` | Erro de I/O do sistema |
+| Error | Description |
+|-------|-------------|
+| `PlcError` | Error returned by the PLC (with main/sub codes) |
+| `Timeout` | Communication timeout |
+| `InvalidAddressing` | Invalid addressing (e.g., bit access on DM) |
+| `InvalidParameter` | Invalid parameter (e.g., count = 0) |
+| `InvalidResponse` | Invalid response from PLC |
+| `SidMismatch` | Service ID mismatch between request/response |
+| `Io` | System I/O error |
 
-## Exemplos
+## Examples
 
-### Monitoramento de I/O
+### I/O Monitoring
 
 ```rust
 use omron_fins::{Client, ClientConfig, MemoryArea};
@@ -228,7 +329,7 @@ fn main() -> omron_fins::Result<()> {
         ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
     )?;
 
-    // Lê estado das entradas digitais (CIO 0-9)
+    // Read digital input states (CIO 0-9)
     let inputs = client.read(MemoryArea::CIO, 0, 10)?;
     
     for (i, word) in inputs.iter().enumerate() {
@@ -239,20 +340,20 @@ fn main() -> omron_fins::Result<()> {
 }
 ```
 
-### Escrita de Receita
+### Recipe Writing
 
 ```rust
 use omron_fins::{Client, ClientConfig, MemoryArea};
 use std::net::Ipv4Addr;
 
 fn write_recipe(client: &Client, recipe_id: u16, params: &[u16]) -> omron_fins::Result<()> {
-    // Escreve ID da receita em DM100
+    // Write recipe ID to DM100
     client.write(MemoryArea::DM, 100, &[recipe_id])?;
     
-    // Escreve parâmetros em DM101-DM110
+    // Write parameters to DM101-DM110
     client.write(MemoryArea::DM, 101, params)?;
     
-    // Seta bit de "receita pronta" em WR 0.00
+    // Set "recipe ready" bit at WR 0.00
     client.write_bit(MemoryArea::WR, 0, 0, true)?;
     
     Ok(())
@@ -266,19 +367,19 @@ fn main() -> omron_fins::Result<()> {
     let recipe_params = [1000, 2000, 3000, 500, 750];
     write_recipe(&client, 42, &recipe_params)?;
     
-    println!("Receita enviada com sucesso!");
+    println!("Recipe sent successfully!");
     Ok(())
 }
 ```
 
-### Leitura de Alarmes
+### Alarm Reading
 
 ```rust
 use omron_fins::{Client, ClientConfig, MemoryArea};
 use std::net::Ipv4Addr;
 
 fn check_alarms(client: &Client) -> omron_fins::Result<Vec<usize>> {
-    // Lê 10 words de alarmes (160 bits)
+    // Read 10 alarm words (160 bits)
     let alarm_words = client.read(MemoryArea::HR, 0, 10)?;
     
     let mut active_alarms = Vec::new();
@@ -291,7 +392,7 @@ fn check_alarms(client: &Client) -> omron_fins::Result<Vec<usize>> {
         }
     }
     
-    active_alarms
+    Ok(active_alarms)
 }
 
 fn main() -> omron_fins::Result<()> {
@@ -302,51 +403,106 @@ fn main() -> omron_fins::Result<()> {
     let alarms = check_alarms(&client)?;
     
     if alarms.is_empty() {
-        println!("Nenhum alarme ativo");
+        println!("No active alarms");
     } else {
-        println!("Alarmes ativos: {:?}", alarms);
+        println!("Active alarms: {:?}", alarms);
     }
     
     Ok(())
 }
 ```
 
-## Constantes Úteis
+### PLC Control
 
 ```rust
-use omron_fins::{DEFAULT_FINS_PORT, DEFAULT_TIMEOUT, MAX_PACKET_SIZE};
+use omron_fins::{Client, ClientConfig, PlcMode};
+use std::net::Ipv4Addr;
 
-// Porta UDP padrão do FINS
-assert_eq!(DEFAULT_FINS_PORT, 9600);
+fn main() -> omron_fins::Result<()> {
+    let client = Client::new(
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+    )?;
 
-// Timeout padrão de comunicação
-assert_eq!(DEFAULT_TIMEOUT, std::time::Duration::from_secs(2));
+    // Stop PLC for maintenance
+    client.stop()?;
+    println!("PLC stopped");
 
-// Tamanho máximo do pacote FINS
-assert_eq!(MAX_PACKET_SIZE, 2012);
+    // Perform maintenance operations...
+
+    // Restart in monitor mode
+    client.run(PlcMode::Monitor)?;
+    println!("PLC running (monitor mode)");
+    
+    Ok(())
+}
 ```
 
-## Limitações
+### Sensor Reading (Float Types)
 
-- **Apenas UDP** — TCP não é suportado nesta versão
-- **Síncrono** — operações bloqueantes (async pode ser adicionado futuramente)
-- **Sem retry automático** — a aplicação deve implementar lógica de retry se necessário
-- **Sem cache** — cada chamada gera uma requisição de rede
-- **Sem reconexão automática** — a aplicação deve recriar o cliente se necessário
+```rust
+use omron_fins::{Client, ClientConfig, MemoryArea};
+use std::net::Ipv4Addr;
 
-## Filosofia de Design
+fn main() -> omron_fins::Result<()> {
+    let client = Client::new(
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+    )?;
 
-Esta biblioteca segue o princípio de **determinismo acima de abstração**:
+    // Read temperature (f32) from DM100-DM101
+    let temperature: f32 = client.read_f32(MemoryArea::DM, 100)?;
+    println!("Temperature: {:.2}°C", temperature);
 
-1. Cada operação faz exatamente o que diz
-2. Sem comportamento mágico ou implícito
-3. A aplicação tem controle total sobre retry, cache e reconexão
-4. Erros são sempre explícitos e descritivos
+    // Read pressure (f32) from DM102-DM103
+    let pressure: f32 = client.read_f32(MemoryArea::DM, 102)?;
+    println!("Pressure: {:.2} bar", pressure);
 
-## Licença
+    // Read production counter (i32) from DM104-DM105
+    let counter: i32 = client.read_i32(MemoryArea::DM, 104)?;
+    println!("Parts produced: {}", counter);
+    
+    Ok(())
+}
+```
 
-MIT License - veja [LICENSE](LICENSE) para detalhes.
+## Constants
 
-## Contribuindo
+```rust
+use omron_fins::{DEFAULT_FINS_PORT, DEFAULT_TIMEOUT, MAX_PACKET_SIZE, MAX_WORDS_PER_COMMAND};
 
-Contribuições são bem-vindas! Por favor, leia [ARCHITECTURE.md](ARCHITECTURE.md) para entender as regras de design do projeto antes de submeter PRs.
+// Default FINS UDP port
+assert_eq!(DEFAULT_FINS_PORT, 9600);
+
+// Default communication timeout
+assert_eq!(DEFAULT_TIMEOUT, std::time::Duration::from_secs(2));
+
+// Maximum FINS packet size
+assert_eq!(MAX_PACKET_SIZE, 2048);
+
+// Maximum words per command
+assert_eq!(MAX_WORDS_PER_COMMAND, 999);
+```
+
+## Limitations
+
+- **UDP only** — TCP is not supported in this version
+- **Synchronous** — blocking operations (async may be added in the future)
+- **No automatic retry** — the application must implement retry logic if needed
+- **No caching** — each call generates a network request
+- **No automatic reconnection** — the application must recreate the client if needed
+
+## Design Philosophy
+
+This library follows the principle of **determinism over abstraction**:
+
+1. Each operation does exactly what it says
+2. No magic or implicit behavior
+3. The application has full control over retry, caching, and reconnection
+4. Errors are always explicit and descriptive
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Contributing
+
+Contributions are welcome! Please read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the project's design rules before submitting PRs.

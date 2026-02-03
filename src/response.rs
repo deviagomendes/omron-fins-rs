@@ -1,4 +1,45 @@
-//! FINS response parsing.
+//! FINS response parsing and validation.
+//!
+//! This module handles parsing and validation of FINS responses received from PLCs.
+//!
+//! # Response Structure
+//!
+//! A FINS response consists of:
+//!
+//! | Component | Size | Description |
+//! |-----------|------|-------------|
+//! | Header | 10 bytes | FINS header (same structure as command) |
+//! | MRC | 1 byte | Main Response Code |
+//! | SRC | 1 byte | Sub Response Code |
+//! | Main Code | 1 byte | Error main code (0x00 = success) |
+//! | Sub Code | 1 byte | Error sub code (0x00 = success) |
+//! | Data | Variable | Response data (if any) |
+//!
+//! # Error Codes
+//!
+//! A response is successful if both main_code and sub_code are 0x00.
+//! Non-zero codes indicate specific errors - refer to Omron documentation
+//! for the complete error code reference.
+//!
+//! # Example
+//!
+//! ```
+//! use omron_fins::FinsResponse;
+//!
+//! // Parse a successful response with data
+//! let bytes = [
+//!     0xC0, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x0A, 0x00, 0x01, // header
+//!     0x01, 0x01, // MRC, SRC
+//!     0x00, 0x00, // success codes
+//!     0x12, 0x34, 0x56, 0x78, // data: 0x1234, 0x5678
+//! ];
+//!
+//! let response = FinsResponse::from_bytes(&bytes).unwrap();
+//! assert!(response.is_success());
+//!
+//! let words = response.to_words().unwrap();
+//! assert_eq!(words, vec![0x1234, 0x5678]);
+//! ```
 
 use crate::error::{FinsError, Result};
 use crate::header::{FinsHeader, FINS_HEADER_SIZE};

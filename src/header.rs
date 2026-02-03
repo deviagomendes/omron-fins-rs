@@ -1,4 +1,47 @@
-//! FINS header structures.
+//! FINS header structures and node addressing.
+//!
+//! This module defines the FINS protocol header structure and node addressing
+//! used for routing FINS frames between nodes on a FINS network.
+//!
+//! # FINS Header Structure
+//!
+//! The FINS header is a 10-byte structure that precedes every FINS command and response:
+//!
+//! | Byte | Field | Description |
+//! |------|-------|-------------|
+//! | 0 | ICF | Information Control Field |
+//! | 1 | RSV | Reserved (always 0x00) |
+//! | 2 | GCT | Gateway Count |
+//! | 3 | DNA | Destination Network Address |
+//! | 4 | DA1 | Destination Node Address |
+//! | 5 | DA2 | Destination Unit Address |
+//! | 6 | SNA | Source Network Address |
+//! | 7 | SA1 | Source Node Address |
+//! | 8 | SA2 | Source Unit Address |
+//! | 9 | SID | Service ID |
+//!
+//! # Node Addressing
+//!
+//! Each node in a FINS network is identified by three components:
+//!
+//! - **Network** (0-127): Network number (0 = local network)
+//! - **Node** (0-255): Node number within the network
+//! - **Unit** (0-255): Unit number within the node (0 = CPU unit)
+//!
+//! # Example
+//!
+//! ```
+//! use omron_fins::{FinsHeader, NodeAddress};
+//!
+//! // Create node addresses
+//! let source = NodeAddress::new(0, 1, 0);      // Local network, node 1, CPU
+//! let destination = NodeAddress::new(0, 10, 0); // Local network, node 10, CPU
+//!
+//! // Create a command header
+//! let header = FinsHeader::new_command(destination, source, 0x01);
+//! let bytes = header.to_bytes();
+//! assert_eq!(bytes.len(), 10);
+//! ```
 
 use crate::error::{FinsError, Result};
 

@@ -1,4 +1,55 @@
 //! Error types for the FINS protocol.
+//!
+//! This module defines the [`FinsError`] enum and the [`Result`] type alias
+//! used throughout the library for error handling.
+//!
+//! # Error Categories
+//!
+//! Errors are categorized into several types:
+//!
+//! - **PLC Errors** - Errors returned by the PLC itself, with main/sub codes
+//! - **Communication Errors** - Timeouts and I/O errors
+//! - **Validation Errors** - Invalid parameters or addressing
+//! - **Protocol Errors** - Invalid responses or SID mismatches
+//!
+//! # Example
+//!
+//! ```no_run
+//! use omron_fins::{Client, ClientConfig, MemoryArea, FinsError};
+//! use std::net::Ipv4Addr;
+//!
+//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+//! let client = Client::new(config)?;
+//!
+//! match client.read(MemoryArea::DM, 100, 10) {
+//!     Ok(data) => println!("Data: {:?}", data),
+//!     Err(FinsError::Timeout) => {
+//!         eprintln!("Communication timed out");
+//!     }
+//!     Err(FinsError::PlcError { main_code, sub_code }) => {
+//!         eprintln!("PLC returned error: main=0x{:02X}, sub=0x{:02X}", main_code, sub_code);
+//!     }
+//!     Err(e) => eprintln!("Error: {}", e),
+//! }
+//! # Ok::<(), FinsError>(())
+//! ```
+//!
+//! # Creating Errors
+//!
+//! The library provides convenience constructors for creating errors:
+//!
+//! ```
+//! use omron_fins::FinsError;
+//!
+//! // Create a PLC error
+//! let err = FinsError::plc_error(0x01, 0x01);
+//!
+//! // Create a parameter error
+//! let err = FinsError::invalid_parameter("count", "must be greater than 0");
+//!
+//! // Create an addressing error
+//! let err = FinsError::invalid_addressing("DM area does not support bit access");
+//! ```
 
 use std::io;
 use thiserror::Error;

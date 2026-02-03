@@ -1,4 +1,41 @@
 //! UDP transport layer for FINS communication.
+//!
+//! This module provides the [`UdpTransport`] struct which handles low-level
+//! UDP communication with Omron PLCs. The transport layer is completely
+//! separated from the protocol layer—it only knows about sockets and bytes.
+//!
+//! # Design
+//!
+//! The transport layer follows these principles:
+//!
+//! - **Protocol agnostic** - Handles only byte transmission, no FINS knowledge
+//! - **Synchronous** - Blocking send/receive with configurable timeout
+//! - **Simple** - One socket, one remote address, no connection pooling
+//!
+//! # Constants
+//!
+//! - [`DEFAULT_FINS_PORT`] - Default FINS UDP port (9600)
+//! - [`DEFAULT_TIMEOUT`] - Default timeout (2 seconds)
+//! - [`MAX_PACKET_SIZE`] - Maximum UDP packet size (2048 bytes)
+//!
+//! # Example
+//!
+//! The transport is typically used through the [`Client`](crate::Client) struct,
+//! but can be used directly for custom implementations:
+//!
+//! ```no_run
+//! use omron_fins::UdpTransport;
+//! use std::time::Duration;
+//!
+//! let transport = UdpTransport::new(
+//!     "192.168.1.10:9600".parse().unwrap(),
+//!     Duration::from_secs(2),
+//! ).unwrap();
+//!
+//! // Send a FINS frame and receive response
+//! let request = vec![0x80, 0x00, 0x02, /* ... rest of FINS frame */];
+//! let response = transport.send_receive(&request);
+//! ```
 
 use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
