@@ -22,7 +22,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-omron-fins = "0.1"
+omron-fins = "0.2.1"
 ```
 
 ## Quick Start
