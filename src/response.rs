@@ -154,9 +154,9 @@ impl FinsResponse {
     pub fn check_error(&self) -> Result<()> {
         if self.is_success() {
             Ok(())
-        } else if self.main_code == 0x00 && self.sub_code == 0x40 && !self.data.is_empty() {
-            // Accept routing table warning (0x0040) when data is present
-            // This matches Python fins-driver behavior
+        } else if self.main_code == 0x00 && self.sub_code == 0x40 {
+            // Accept routing table warning (0x0040)
+            // This is common with Omron PLCs and the Python fins-driver ignores it
             Ok(())
         } else {
             Err(FinsError::plc_error(self.main_code, self.sub_code))

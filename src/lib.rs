@@ -219,7 +219,7 @@ pub use command::{
     MultiReadSpec, MultipleReadCommand, PlcMode, ReadBitCommand, ReadWordCommand, RunCommand,
     StopCommand, TransferCommand, WriteBitCommand, WriteWordCommand, MAX_WORDS_PER_COMMAND,
 };
-pub use error::{FinsError, Result};
+pub use error::{fins_error_description, FinsError, Result};
 pub use header::{FinsHeader, NodeAddress, FINS_HEADER_SIZE};
 pub use memory::MemoryArea;
 pub use response::FinsResponse;

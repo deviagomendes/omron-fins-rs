@@ -176,6 +176,38 @@ impl UdpTransport {
     pub fn socket(&self) -> &UdpSocket {
         &self.socket
     }
+
+    /// Drains any pending data from the socket buffer.
+    ///
+    /// This is useful to clear stale responses before starting a new
+    /// operation sequence, especially after connection issues or
+    /// when resuming communication.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use omron_fins::UdpTransport;
+    /// use std::time::Duration;
+    ///
+    /// let transport = UdpTransport::new(
+    ///     "192.168.1.10:9600".parse().unwrap(),
+    ///     Duration::from_secs(2),
+    /// ).unwrap();
+    ///
+    /// // Clear any stale data before operations
+    /// transport.drain_pending();
+    /// ```
+    pub fn drain_pending(&self) {
+        // Set socket to non-blocking temporarily
+        let _ = self.socket.set_nonblocking(true);
+
+        let mut buffer = [0u8; MAX_PACKET_SIZE];
+        // Read and discard all pending data
+        while self.socket.recv(&mut buffer).is_ok() {}
+
+        // Restore blocking mode with original timeout
+        let _ = self.socket.set_nonblocking(false);
+    }
 }
 
 impl std::fmt::Debug for UdpTransport {

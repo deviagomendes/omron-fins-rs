@@ -229,6 +229,9 @@ impl Client {
     pub fn new(config: ClientConfig) -> Result<Self> {
         let transport = UdpTransport::new(config.plc_addr, config.timeout)?;
 
+        // Drain any stale packets from previous sessions
+        transport.drain_pending();
+
         Ok(Self {
             transport,
             source: config.source,
@@ -240,6 +243,41 @@ impl Client {
     /// Generates the next Service ID.
     fn next_sid(&self) -> u8 {
         self.sid_counter.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// Sends a command and receives the response, with SID validation and retry.
+    ///
+    /// If the received response has a mismatched SID (stale packet), it will
+    /// drain pending packets and retry up to MAX_SID_RETRIES times.
+    fn send_receive_with_sid(&self, data: &[u8], expected_sid: u8) -> Result<FinsResponse> {
+        use crate::error::FinsError;
+        const MAX_SID_RETRIES: usize = 3;
+
+        for attempt in 0..=MAX_SID_RETRIES {
+            // On retry, drain any stale packets first
+            if attempt > 0 {
+                self.transport.drain_pending();
+            }
+
+            let response_bytes = self.transport.send_receive(data)?;
+            let response = FinsResponse::from_bytes(&response_bytes)?;
+
+            if response.header.sid == expected_sid {
+                return Ok(response);
+            }
+
+            // Log mismatch on first attempt only (for debugging)
+            if attempt == 0 {
+                // SID mismatch - stale packet detected, will retry
+            }
+        }
+
+        // All retries failed - return error with last received SID
+        // Drain and try one more time to get the actual received SID for error message
+        self.transport.drain_pending();
+        let response_bytes = self.transport.send_receive(data)?;
+        let response = FinsResponse::from_bytes(&response_bytes)?;
+        Err(FinsError::sid_mismatch(expected_sid, response.header.sid))
     }
 
     /// Reads words from PLC memory.
@@ -274,9 +312,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = ReadWordCommand::new(self.destination, self.source, sid, area, address, count)?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         response.to_words()
     }
@@ -312,9 +348,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = WriteWordCommand::new(self.destination, self.source, sid, area, address, data)?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -352,9 +386,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = ReadBitCommand::new(self.destination, self.source, sid, area, address, bit)?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes()?)?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes()?, sid)?;
         response.check_error()?;
         response.to_bit()
     }
@@ -400,9 +432,7 @@ impl Client {
             value,
         )?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes()?)?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes()?, sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -448,9 +478,7 @@ impl Client {
             value,
         )?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -481,9 +509,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = RunCommand::new(self.destination, self.source, sid, mode);
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -510,9 +536,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = StopCommand::new(self.destination, self.source, sid);
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -567,9 +591,7 @@ impl Client {
             count,
         )?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -608,9 +630,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = ForcedSetResetCommand::new(self.destination, self.source, sid, specs.to_vec())?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes()?)?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes()?, sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -637,9 +657,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = ForcedSetResetCancelCommand::new(self.destination, self.source, sid);
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes())?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
         response.check_error()?;
         Ok(())
     }
@@ -686,9 +704,7 @@ impl Client {
         let sid = self.next_sid();
         let cmd = MultipleReadCommand::new(self.destination, self.source, sid, specs.to_vec())?;
 
-        let response_bytes = self.transport.send_receive(&cmd.to_bytes()?)?;
-        let response = FinsResponse::from_bytes(&response_bytes)?;
-        response.check_sid(sid)?;
+        let response = self.send_receive_with_sid(&cmd.to_bytes()?, sid)?;
         response.check_error()?;
         response.to_words()
     }
@@ -1195,5 +1211,12 @@ mod tests {
         }
         let result = String::from_utf8_lossy(&result_bytes).to_string();
         assert_eq!(result, original);
+    }
+
+    #[test]
+    fn test_float32_to_bytes() {
+        let value: f32 = 3.14159;
+        let bytes = value.to_be_bytes();
+        assert_eq!(bytes, [0x40, 0x49, 0x0F, 0xD0]);
     }
 }
