@@ -18,7 +18,7 @@
 //! use std::net::Ipv4Addr;
 //!
 //! // Create and configure the client
-//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 //! let client = Client::new(config)?;
 //!
 //! // Read data
@@ -96,7 +96,7 @@ impl ClientConfig {
     /// use omron_fins::ClientConfig;
     /// use std::net::Ipv4Addr;
     ///
-    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
     /// ```
     pub fn new(plc_ip: std::net::Ipv4Addr, source_node: u8, dest_node: u8) -> Self {
         Self {
@@ -115,7 +115,7 @@ impl ClientConfig {
     /// use omron_fins::ClientConfig;
     /// use std::net::Ipv4Addr;
     ///
-    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     ///     .with_port(9601);
     /// ```
     pub fn with_port(mut self, port: u16) -> Self {
@@ -132,7 +132,7 @@ impl ClientConfig {
     /// use std::net::Ipv4Addr;
     /// use std::time::Duration;
     ///
-    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     ///     .with_timeout(Duration::from_secs(5));
     /// ```
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
@@ -148,7 +148,7 @@ impl ClientConfig {
     /// use omron_fins::ClientConfig;
     /// use std::net::Ipv4Addr;
     ///
-    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     ///     .with_source_network(1)
     ///     .with_source_unit(0);
     /// ```
@@ -188,7 +188,7 @@ impl ClientConfig {
 /// use omron_fins::{Client, ClientConfig, MemoryArea};
 /// use std::net::Ipv4Addr;
 ///
-/// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+/// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 /// let client = Client::new(config).unwrap();
 ///
 /// // Read 10 words from DM100
@@ -223,7 +223,7 @@ impl Client {
     /// use omron_fins::{Client, ClientConfig};
     /// use std::net::Ipv4Addr;
     ///
-    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+    /// let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
     /// let client = Client::new(config).unwrap();
     /// ```
     pub fn new(config: ClientConfig) -> Result<Self> {
@@ -264,7 +264,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// let data = client.read(MemoryArea::DM, 100, 10).unwrap();
@@ -303,7 +303,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.write(MemoryArea::DM, 100, &[0x1234, 0x5678]).unwrap();
@@ -342,7 +342,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// let bit = client.read_bit(MemoryArea::CIO, 0, 5).unwrap();
@@ -383,7 +383,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.write_bit(MemoryArea::CIO, 0, 5, true).unwrap();
@@ -430,7 +430,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// // Zero out DM100-DM149
@@ -472,7 +472,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.run(PlcMode::Monitor).unwrap();
@@ -501,7 +501,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.stop().unwrap();
@@ -541,7 +541,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// // Copy DM100-DM109 to DM200-DM209
@@ -596,7 +596,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.forced_set_reset(&[
@@ -628,7 +628,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.forced_set_reset_cancel().unwrap();
@@ -672,7 +672,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// let values = client.read_multiple(&[
@@ -711,7 +711,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// let temperature: f32 = client.read_f32(MemoryArea::DM, 100).unwrap();
@@ -746,7 +746,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.write_f32(MemoryArea::DM, 100, 3.14159).unwrap();
@@ -778,7 +778,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// let value: f64 = client.read_f64(MemoryArea::DM, 100).unwrap();
@@ -817,7 +817,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.write_f64(MemoryArea::DM, 100, 3.141592653589793).unwrap();
@@ -851,7 +851,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// let counter: i32 = client.read_i32(MemoryArea::DM, 100).unwrap();
@@ -886,7 +886,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// client.write_i32(MemoryArea::DM, 100, -123456).unwrap();
@@ -926,7 +926,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// // Write a product code to DM100
@@ -995,7 +995,7 @@ impl Client {
     /// use std::net::Ipv4Addr;
     ///
     /// let client = Client::new(ClientConfig::new(
-    ///     Ipv4Addr::new(192, 168, 1, 10), 1, 10
+    ///     Ipv4Addr::new(192, 168, 1, 250), 1, 0
     /// )).unwrap();
     ///
     /// // Read a product code from DM100 (up to 20 characters = 10 words)
@@ -1047,25 +1047,25 @@ mod tests {
 
     #[test]
     fn test_client_config_new() {
-        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 
-        assert_eq!(config.plc_addr.ip(), Ipv4Addr::new(192, 168, 1, 10));
+        assert_eq!(config.plc_addr.ip(), Ipv4Addr::new(192, 168, 1, 250));
         assert_eq!(config.plc_addr.port(), DEFAULT_FINS_PORT);
         assert_eq!(config.source.node, 1);
-        assert_eq!(config.destination.node, 10);
+        assert_eq!(config.destination.node, 0);
         assert_eq!(config.timeout, DEFAULT_TIMEOUT);
     }
 
     #[test]
     fn test_client_config_with_port() {
-        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10).with_port(9601);
+        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0).with_port(9601);
 
         assert_eq!(config.plc_addr.port(), 9601);
     }
 
     #[test]
     fn test_client_config_with_timeout() {
-        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
             .with_timeout(Duration::from_secs(5));
 
         assert_eq!(config.timeout, Duration::from_secs(5));
@@ -1073,7 +1073,7 @@ mod tests {
 
     #[test]
     fn test_client_config_with_network() {
-        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
             .with_source_network(1)
             .with_dest_network(2);
 

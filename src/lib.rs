@@ -21,19 +21,18 @@
 //! use std::net::Ipv4Addr;
 //!
 //! fn main() -> omron_fins::Result<()> {
-//!     // Create a client configuration
-//!     let config = ClientConfig::new(
-//!         Ipv4Addr::new(192, 168, 1, 10),  // PLC IP address
-//!         1,                                // Source node (this client)
-//!         10,                               // Destination node (the PLC)
-//!     );
-//!
-//!     // Connect to the PLC
+//!     // Connect to PLC at factory default IP (192.168.1.250)
+//!     // Using source_node=1, dest_node=0 (same defaults as Python fins-driver)
+//!     let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 //!     let client = Client::new(config)?;
+//!
+//!     // Read D1 (1 word from DM area)
+//!     let data = client.read(MemoryArea::DM, 1, 1)?;
+//!     println!("D1 = {:?}", data);
 //!
 //!     // Read 10 words from DM100
 //!     let data = client.read(MemoryArea::DM, 100, 10)?;
-//!     println!("Read {} words: {:?}", data.len(), data);
+//!     println!("DM100-109: {:?}", data);
 //!
 //!     // Write values to DM200
 //!     client.write(MemoryArea::DM, 200, &[0x1234, 0x5678])?;
@@ -47,6 +46,20 @@
 //!
 //!     Ok(())
 //! }
+//! ```
+//!
+//! ### Equivalent Python (fins-driver)
+//!
+//! This library is compatible with the Python [fins-driver](https://pypi.org/project/fins-driver/) library:
+//!
+//! ```python
+//! from fins import FinsClient
+//!
+//! client = FinsClient(host='192.168.1.250', port=9600)
+//! client.connect()
+//! response = client.memory_area_read('D1')
+//! print(response.data)
+//! client.close()
 //! ```
 //!
 //! ## Memory Areas
@@ -68,7 +81,7 @@
 //! ```no_run
 //! # use omron_fins::{Client, ClientConfig, MemoryArea};
 //! # use std::net::Ipv4Addr;
-//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)).unwrap();
+//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)).unwrap();
 //! // Read words
 //! let data = client.read(MemoryArea::DM, 100, 10)?;
 //!
@@ -88,7 +101,7 @@
 //! ```no_run
 //! # use omron_fins::{Client, ClientConfig, MemoryArea};
 //! # use std::net::Ipv4Addr;
-//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)).unwrap();
+//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)).unwrap();
 //! // Read a bit (CIO 0.05)
 //! let bit = client.read_bit(MemoryArea::CIO, 0, 5)?;
 //!
@@ -104,7 +117,7 @@
 //! ```no_run
 //! # use omron_fins::{Client, ClientConfig, MemoryArea};
 //! # use std::net::Ipv4Addr;
-//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)).unwrap();
+//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)).unwrap();
 //! // f32 (REAL) - 2 words
 //! let temp: f32 = client.read_f32(MemoryArea::DM, 100)?;
 //! client.write_f32(MemoryArea::DM, 100, 3.14159)?;
@@ -128,7 +141,7 @@
 //! ```no_run
 //! # use omron_fins::{Client, ClientConfig, PlcMode};
 //! # use std::net::Ipv4Addr;
-//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)).unwrap();
+//! # let client = Client::new(ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)).unwrap();
 //! // Put PLC in run mode
 //! client.run(PlcMode::Monitor)?;
 //!
@@ -145,7 +158,7 @@
 //! use omron_fins::{Client, ClientConfig, MemoryArea, FinsError};
 //! use std::net::Ipv4Addr;
 //!
-//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 //! let client = Client::new(config)?;
 //!
 //! match client.read(MemoryArea::DM, 100, 10) {
@@ -169,7 +182,7 @@
 //! use std::net::Ipv4Addr;
 //! use std::time::Duration;
 //!
-//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
 //!     .with_port(9601)                        // Custom port (default: 9600)
 //!     .with_timeout(Duration::from_secs(5))   // Custom timeout (default: 2s)
 //!     .with_source_network(1)                 // Source network address

@@ -22,7 +22,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-omron-fins = "0.3.0"
+omron-fins = "0.3.1"
 ```
 
 ## Quick Start
@@ -32,19 +32,18 @@ use omron_fins::{Client, ClientConfig, MemoryArea};
 use std::net::Ipv4Addr;
 
 fn main() -> omron_fins::Result<()> {
-    // Create client configuration
-    let config = ClientConfig::new(
-        Ipv4Addr::new(192, 168, 1, 10),  // PLC IP address
-        1,                                // Source node (this client)
-        10,                               // Destination node (the PLC)
-    );
-
-    // Connect to the PLC
+    // Connect to PLC at factory default IP (192.168.1.250)
+    // Using source_node=1, dest_node=0 (same defaults as Python fins-driver)
+    let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
     let client = Client::new(config)?;
+
+    // Read D1 (1 word from DM area)
+    let data = client.read(MemoryArea::DM, 1, 1)?;
+    println!("D1 = {:?}", data);
 
     // Read 10 words starting from DM100
     let data = client.read(MemoryArea::DM, 100, 10)?;
-    println!("Data read: {:?}", data);
+    println!("DM100-109: {:?}", data);
 
     // Write values to DM200
     client.write(MemoryArea::DM, 200, &[0x1234, 0x5678])?;
@@ -58,6 +57,20 @@ fn main() -> omron_fins::Result<()> {
 
     Ok(())
 }
+```
+
+### Equivalent Python (fins-driver)
+
+This library is compatible with the Python [fins-driver](https://pypi.org/project/fins-driver/) library:
+
+```python
+from fins import FinsClient
+
+client = FinsClient(host='192.168.1.250', port=9600)
+client.connect()
+response = client.memory_area_read('D1')
+print(response.data)
+client.close()
 ```
 
 ## Memory Areas
@@ -267,7 +280,7 @@ use omron_fins::ClientConfig;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     .with_port(9601)                        // Custom port (default: 9600)
     .with_timeout(Duration::from_secs(5))   // Custom timeout (default: 2s)
     .with_source_network(1)                 // Source network
@@ -306,7 +319,7 @@ All operations return `Result<T, FinsError>`. The library never panics in public
 use omron_fins::{Client, ClientConfig, MemoryArea, FinsError};
 use std::net::Ipv4Addr;
 
-let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 let client = Client::new(config)?;
 
 match client.read(MemoryArea::DM, 100, 10) {
@@ -354,7 +367,7 @@ use std::net::Ipv4Addr;
 
 fn main() -> omron_fins::Result<()> {
     let client = Client::new(
-        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     )?;
 
     // Read digital input states (CIO 0-9)
@@ -389,7 +402,7 @@ fn write_recipe(client: &Client, recipe_id: u16, params: &[u16]) -> omron_fins::
 
 fn main() -> omron_fins::Result<()> {
     let client = Client::new(
-        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     )?;
 
     let recipe_params = [1000, 2000, 3000, 500, 750];
@@ -425,7 +438,7 @@ fn check_alarms(client: &Client) -> omron_fins::Result<Vec<usize>> {
 
 fn main() -> omron_fins::Result<()> {
     let client = Client::new(
-        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     )?;
 
     let alarms = check_alarms(&client)?;
@@ -448,7 +461,7 @@ use std::net::Ipv4Addr;
 
 fn main() -> omron_fins::Result<()> {
     let client = Client::new(
-        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     )?;
 
     // Stop PLC for maintenance
@@ -473,7 +486,7 @@ use std::net::Ipv4Addr;
 
 fn main() -> omron_fins::Result<()> {
     let client = Client::new(
-        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10)
+        ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
     )?;
 
     // Read temperature (f32) from DM100-DM101

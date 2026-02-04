@@ -18,7 +18,7 @@
 //! use omron_fins::{Client, ClientConfig, MemoryArea, FinsError};
 //! use std::net::Ipv4Addr;
 //!
-//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 10), 1, 10);
+//! let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
 //! let client = Client::new(config)?;
 //!
 //! match client.read(MemoryArea::DM, 100, 10) {

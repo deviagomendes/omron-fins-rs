@@ -128,9 +128,16 @@ impl FinsResponse {
 
     /// Validates the response and returns an error if it indicates failure.
     ///
+    /// # Note
+    ///
+    /// Error code 0x0040 (routing table warning) is accepted when data is present,
+    /// as this is common behavior with Omron PLCs and the Python fins-driver library
+    /// handles it the same way.
+    ///
     /// # Errors
     ///
-    /// Returns `FinsError::PlcError` if main_code or sub_code is non-zero.
+    /// Returns `FinsError::PlcError` if main_code or sub_code is non-zero
+    /// (except for the 0x0040 warning with data).
     ///
     /// # Example
     ///
@@ -146,6 +153,10 @@ impl FinsResponse {
     /// ```
     pub fn check_error(&self) -> Result<()> {
         if self.is_success() {
+            Ok(())
+        } else if self.main_code == 0x00 && self.sub_code == 0x40 && !self.data.is_empty() {
+            // Accept routing table warning (0x0040) when data is present
+            // This matches Python fins-driver behavior
             Ok(())
         } else {
             Err(FinsError::plc_error(self.main_code, self.sub_code))

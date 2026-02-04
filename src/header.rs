@@ -159,7 +159,7 @@ impl FinsHeader {
         Self {
             icf: 0x80, // Command, response required
             rsv: 0x00,
-            gct: 0x02, // Default gateway count
+            gct: 0x07, // Gateway count (max hops allowed)
             dna: destination.network,
             da1: destination.node,
             da2: destination.unit,
@@ -274,7 +274,7 @@ mod tests {
 
         assert_eq!(header.icf, 0x80);
         assert_eq!(header.rsv, 0x00);
-        assert_eq!(header.gct, 0x02);
+        assert_eq!(header.gct, 0x07);
         assert_eq!(header.dna, 0);
         assert_eq!(header.da1, 10);
         assert_eq!(header.da2, 0);
@@ -293,7 +293,7 @@ mod tests {
 
         assert_eq!(
             bytes,
-            [0x80, 0x00, 0x02, 0x00, 0x0A, 0x00, 0x00, 0x01, 0x00, 0x01]
+            [0x80, 0x00, 0x07, 0x00, 0x0A, 0x00, 0x00, 0x01, 0x00, 0x01]
         );
     }
 

@@ -86,6 +86,8 @@ impl UdpTransport {
     pub fn new(plc_addr: SocketAddr, timeout: Duration) -> Result<Self> {
         // Bind to any available local port
         let socket = UdpSocket::bind("0.0.0.0:0")?;
+        // Connect to the PLC (required for proper FINS communication)
+        socket.connect(plc_addr)?;
         socket.set_read_timeout(Some(timeout))?;
         socket.set_write_timeout(Some(timeout))?;
 
@@ -149,13 +151,13 @@ impl UdpTransport {
     /// let response = transport.send_receive(&request).unwrap();
     /// ```
     pub fn send_receive(&self, data: &[u8]) -> Result<Vec<u8>> {
-        // Send the request
-        self.socket.send_to(data, self.remote_addr)?;
+        // Send the request (socket is already connected)
+        self.socket.send(data)?;
 
         // Receive the response
         let mut buffer = vec![0u8; MAX_PACKET_SIZE];
-        match self.socket.recv_from(&mut buffer) {
-            Ok((size, _addr)) => {
+        match self.socket.recv(&mut buffer) {
+            Ok(size) => {
                 buffer.truncate(size);
                 Ok(buffer)
             }
