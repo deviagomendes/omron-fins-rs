@@ -22,7 +22,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-omron-fins = "0.3.2"
+omron-fins = "0.4.0"
 ```
 
 ## Quick Start
@@ -503,6 +503,53 @@ fn main() -> omron_fins::Result<()> {
     
     Ok(())
 }
+```
+
+## Utility Functions
+
+The library provides utility functions for bit manipulation and data formatting:
+
+```rust
+use omron_fins::utils::{
+    get_bit, set_bit, toggle_bit,
+    word_to_bits, bits_to_word,
+    get_on_bits, count_on_bits,
+    format_binary, format_hex,
+    print_bits,
+};
+
+let value: u16 = 0b1010_0101_1100_0011;
+
+// Get individual bits
+assert!(get_bit(value, 0));   // bit 0 is ON
+assert!(!get_bit(value, 2));  // bit 2 is OFF
+
+// Modify bits
+let modified = set_bit(value, 2, true);
+let toggled = toggle_bit(value, 0);
+
+// Convert word to bit array
+let bits = word_to_bits(value);
+for (i, bit) in bits.iter().enumerate() {
+    if *bit {
+        println!("Bit {} is ON", i);
+    }
+}
+
+// Get list of ON bits
+let on_bits = get_on_bits(value);
+println!("Bits that are ON: {:?}", on_bits);
+
+// Count ON bits
+let count = count_on_bits(value);
+println!("Number of ON bits: {}", count);
+
+// Format for display
+println!("{}", format_binary(value));  // "0b1010_0101_1100_0011"
+println!("{}", format_hex(value));     // "0xA5C3"
+
+// Print all bits to stdout
+print_bits(value);
 ```
 
 ## Constants

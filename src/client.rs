@@ -734,11 +734,12 @@ impl Client {
     /// ```
     pub fn read_f32(&self, area: MemoryArea, address: u16) -> Result<f32> {
         let words = self.read(area, address, 2)?;
+        // Omron uses word swap: low word first, high word second
         let bytes = [
-            (words[0] >> 8) as u8,
-            (words[0] & 0xFF) as u8,
             (words[1] >> 8) as u8,
             (words[1] & 0xFF) as u8,
+            (words[0] >> 8) as u8,
+            (words[0] & 0xFF) as u8,
         ];
         Ok(f32::from_be_bytes(bytes))
     }
@@ -769,9 +770,10 @@ impl Client {
     /// ```
     pub fn write_f32(&self, area: MemoryArea, address: u16, value: f32) -> Result<()> {
         let bytes = value.to_be_bytes();
+        // Omron uses word swap: low word first, high word second
         let words = [
-            u16::from_be_bytes([bytes[0], bytes[1]]),
             u16::from_be_bytes([bytes[2], bytes[3]]),
+            u16::from_be_bytes([bytes[0], bytes[1]]),
         ];
         self.write(area, address, &words)
     }
@@ -801,15 +803,16 @@ impl Client {
     /// ```
     pub fn read_f64(&self, area: MemoryArea, address: u16) -> Result<f64> {
         let words = self.read(area, address, 4)?;
+        // Omron uses word swap: words in reverse order
         let bytes = [
-            (words[0] >> 8) as u8,
-            (words[0] & 0xFF) as u8,
-            (words[1] >> 8) as u8,
-            (words[1] & 0xFF) as u8,
-            (words[2] >> 8) as u8,
-            (words[2] & 0xFF) as u8,
             (words[3] >> 8) as u8,
             (words[3] & 0xFF) as u8,
+            (words[2] >> 8) as u8,
+            (words[2] & 0xFF) as u8,
+            (words[1] >> 8) as u8,
+            (words[1] & 0xFF) as u8,
+            (words[0] >> 8) as u8,
+            (words[0] & 0xFF) as u8,
         ];
         Ok(f64::from_be_bytes(bytes))
     }
@@ -840,11 +843,12 @@ impl Client {
     /// ```
     pub fn write_f64(&self, area: MemoryArea, address: u16, value: f64) -> Result<()> {
         let bytes = value.to_be_bytes();
+        // Omron uses word swap: words in reverse order
         let words = [
-            u16::from_be_bytes([bytes[0], bytes[1]]),
-            u16::from_be_bytes([bytes[2], bytes[3]]),
-            u16::from_be_bytes([bytes[4], bytes[5]]),
             u16::from_be_bytes([bytes[6], bytes[7]]),
+            u16::from_be_bytes([bytes[4], bytes[5]]),
+            u16::from_be_bytes([bytes[2], bytes[3]]),
+            u16::from_be_bytes([bytes[0], bytes[1]]),
         ];
         self.write(area, address, &words)
     }
@@ -974,11 +978,12 @@ impl Client {
             });
         }
 
+        // Omron uses byte swap within words: first char in low byte, second char in high byte
         let words: Vec<u16> = bytes
             .chunks(2)
             .map(|chunk| {
-                let high = chunk[0] as u16;
-                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                let low = chunk[0] as u16;
+                let high = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
                 (high << 8) | low
             })
             .collect();
@@ -1021,10 +1026,11 @@ impl Client {
     pub fn read_string(&self, area: MemoryArea, address: u16, word_count: u16) -> Result<String> {
         let words = self.read(area, address, word_count)?;
 
+        // Omron uses byte swap within words: first char in low byte, second char in high byte
         let mut bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
         for word in &words {
-            bytes.push((word >> 8) as u8);
-            bytes.push((word & 0xFF) as u8);
+            bytes.push((word & 0xFF) as u8); // low byte first
+            bytes.push((word >> 8) as u8); // high byte second
         }
 
         // Trim null bytes from the end
@@ -1125,44 +1131,44 @@ mod tests {
 
     #[test]
     fn test_string_to_words_even_length() {
-        // "Hi" = [0x48, 0x69] -> [0x4869]
+        // "Hi" = [0x48, 0x69] -> [0x6948] (byte swap: first char in low byte)
         let s = "Hi";
         let bytes = s.as_bytes();
         let words: Vec<u16> = bytes
             .chunks(2)
             .map(|chunk| {
-                let high = chunk[0] as u16;
-                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                let low = chunk[0] as u16;
+                let high = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
                 (high << 8) | low
             })
             .collect();
-        assert_eq!(words, vec![0x4869]);
+        assert_eq!(words, vec![0x6948]);
     }
 
     #[test]
     fn test_string_to_words_odd_length() {
-        // "Hello" = [0x48, 0x65, 0x6C, 0x6C, 0x6F] -> [0x4865, 0x6C6C, 0x6F00]
+        // "Hello" = [0x48, 0x65, 0x6C, 0x6C, 0x6F] -> [0x6548, 0x6C6C, 0x006F] (byte swap)
         let s = "Hello";
         let bytes = s.as_bytes();
         let words: Vec<u16> = bytes
             .chunks(2)
             .map(|chunk| {
-                let high = chunk[0] as u16;
-                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                let low = chunk[0] as u16;
+                let high = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
                 (high << 8) | low
             })
             .collect();
-        assert_eq!(words, vec![0x4865, 0x6C6C, 0x6F00]);
+        assert_eq!(words, vec![0x6548, 0x6C6C, 0x006F]);
     }
 
     #[test]
     fn test_words_to_string() {
-        // [0x4865, 0x6C6C, 0x6F00] -> "Hello"
-        let words = vec![0x4865u16, 0x6C6C, 0x6F00];
+        // [0x6548, 0x6C6C, 0x006F] -> "Hello" (byte swap: low byte is first char)
+        let words = vec![0x6548u16, 0x6C6C, 0x006F];
         let mut bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
         for word in &words {
-            bytes.push((word >> 8) as u8);
-            bytes.push((word & 0xFF) as u8);
+            bytes.push((word & 0xFF) as u8); // low byte first
+            bytes.push((word >> 8) as u8); // high byte second
         }
         while bytes.last() == Some(&0) {
             bytes.pop();
@@ -1173,12 +1179,12 @@ mod tests {
 
     #[test]
     fn test_words_to_string_no_null() {
-        // [0x4869] -> "Hi" (no null padding)
-        let words = vec![0x4869u16];
+        // [0x6948] -> "Hi" (byte swap: low byte is first char)
+        let words = vec![0x6948u16];
         let mut bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
         for word in &words {
-            bytes.push((word >> 8) as u8);
-            bytes.push((word & 0xFF) as u8);
+            bytes.push((word & 0xFF) as u8); // low byte first
+            bytes.push((word >> 8) as u8); // high byte second
         }
         while bytes.last() == Some(&0) {
             bytes.pop();
@@ -1189,22 +1195,22 @@ mod tests {
 
     #[test]
     fn test_string_roundtrip() {
-        // Test that string -> words -> string preserves the original
+        // Test that string -> words -> string preserves the original (with byte swap)
         let original = "PRODUCT-001";
         let bytes = original.as_bytes();
         let words: Vec<u16> = bytes
             .chunks(2)
             .map(|chunk| {
-                let high = chunk[0] as u16;
-                let low = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
+                let low = chunk[0] as u16;
+                let high = if chunk.len() > 1 { chunk[1] as u16 } else { 0 };
                 (high << 8) | low
             })
             .collect();
 
         let mut result_bytes: Vec<u8> = Vec::with_capacity(words.len() * 2);
         for word in &words {
-            result_bytes.push((word >> 8) as u8);
-            result_bytes.push((word & 0xFF) as u8);
+            result_bytes.push((word & 0xFF) as u8); // low byte first
+            result_bytes.push((word >> 8) as u8); // high byte second
         }
         while result_bytes.last() == Some(&0) {
             result_bytes.pop();

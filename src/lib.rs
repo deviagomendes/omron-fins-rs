@@ -13,6 +13,7 @@
 //! - **Type-safe** — memory areas as enums, compile-time validation
 //! - **No panics** — all errors returned as `Result<T, FinsError>`
 //! - **Complete API** — read, write, fill, transfer, run/stop, forced set/reset
+//! - **Utility functions** — bit manipulation, formatting, and conversion helpers
 //!
 //! ## Quick Start
 //!
@@ -150,6 +151,30 @@
 //! # Ok::<(), omron_fins::FinsError>(())
 //! ```
 //!
+//! ## Utility Functions
+//!
+//! The [`utils`] module provides helper functions for bit manipulation and formatting:
+//!
+//! ```
+//! use omron_fins::utils::{get_bit, set_bit, word_to_bits, format_binary, format_hex};
+//!
+//! let value: u16 = 0b1010_0101;
+//!
+//! // Get individual bits
+//! assert!(get_bit(value, 0));   // bit 0 is ON
+//! assert!(!get_bit(value, 1));  // bit 1 is OFF
+//!
+//! // Modify bits
+//! let modified = set_bit(value, 1, true);
+//!
+//! // Convert to bit array
+//! let bits = word_to_bits(value);
+//!
+//! // Format for display
+//! println!("{}", format_binary(value));  // "0b0000_0000_1010_0101"
+//! println!("{}", format_hex(value));     // "0x00A5"
+//! ```
+//!
 //! ## Error Handling
 //!
 //! All operations return [`Result<T, FinsError>`]. The library never panics in public code.
@@ -198,7 +223,7 @@
 //! 3. The application has full control over retry, caching, and reconnection
 //! 4. Errors are always explicit and descriptive
 //!
-//! For more details, see the [ARCHITECTURE.md](https://github.com/your-repo/omron-fins-rs/blob/main/ARCHITECTURE.md) file.
+//! For more details, see the [ARCHITECTURE.md](https://github.com/deviagomendes/omron-fins-rs/blob/main/ARCHITECTURE.md) file.
 
 #![warn(clippy::all)]
 #![warn(missing_docs)]
@@ -211,6 +236,7 @@ mod header;
 mod memory;
 mod response;
 mod transport;
+pub mod utils;
 
 // Public re-exports
 pub use client::{Client, ClientConfig};
