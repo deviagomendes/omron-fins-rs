@@ -98,7 +98,10 @@ pub fn fins_error_description(main_code: u8, sub_code: u8) -> &'static str {
 
         // Service unsupported errors (0x04)
         (0x04, 0x01) => "An undefined command has been used",
-        (0x04, 0x02) => "Cannot process command because the specified unit model or version is wrong",
+        (0x04, 0x02) => {
+            "Cannot process command because the specified unit model or version is wrong"
+        }
+        (0x04, 0x41) => "Command not supported by this PLC model or version",
 
         // Routing errors (0x05)
         (0x05, 0x01) => "Destination node number is not set in the routing table",
@@ -439,7 +442,10 @@ mod tests {
         );
 
         // Mode errors
-        assert_eq!(fins_error_description(0x22, 0x06), "The PC is in the RUN mode");
+        assert_eq!(
+            fins_error_description(0x22, 0x06),
+            "The PC is in the RUN mode"
+        );
 
         // Unit errors
         assert_eq!(fins_error_description(0x25, 0x05), "CPU bus error");
