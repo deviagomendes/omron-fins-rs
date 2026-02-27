@@ -58,7 +58,7 @@ use std::time::Duration;
 use crate::command::{
     FillCommand, ForcedBit, ForcedSetResetCancelCommand, ForcedSetResetCommand, MultiReadSpec,
     MultipleReadCommand, PlcMode, ReadBitCommand, ReadWordCommand, RunCommand, StopCommand,
-    TransferCommand, WriteBitCommand, WriteWordCommand,
+    TransferCommand, WriteBitCommand, WriteWordCommand, MAX_WORDS_PER_COMMAND,
 };
 use crate::error::Result;
 use crate::header::NodeAddress;
@@ -308,13 +308,38 @@ impl Client {
     /// let data = client.read(MemoryArea::DM, 100, 10).unwrap();
     /// println!("Read {} words: {:?}", data.len(), data);
     /// ```
-    pub fn read(&self, area: MemoryArea, address: u16, count: u16) -> Result<Vec<u16>> {
-        let sid = self.next_sid();
-        let cmd = ReadWordCommand::new(self.destination, self.source, sid, area, address, count)?;
+    pub fn read(&self, area: MemoryArea, mut address: u16, mut count: u16) -> Result<Vec<u16>> {
+        area.check_bounds(address, count)?;
 
-        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
-        response.check_error()?;
-        response.to_words()
+        let mut result = Vec::with_capacity(count as usize);
+
+        while count > 0 {
+            let chunk_size = std::cmp::min(count, MAX_WORDS_PER_COMMAND);
+
+            let sid = self.next_sid();
+            let cmd = ReadWordCommand::new(
+                self.destination,
+                self.source,
+                sid,
+                area,
+                address,
+                chunk_size,
+            )?;
+            let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
+            response.check_error()?;
+
+            let words = response.to_words()?;
+            result.extend(words);
+
+            address += chunk_size;
+            count -= chunk_size;
+
+            if count > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+
+        Ok(result)
     }
 
     /// Writes words to PLC memory.
@@ -344,12 +369,37 @@ impl Client {
     ///
     /// client.write(MemoryArea::DM, 100, &[0x1234, 0x5678]).unwrap();
     /// ```
-    pub fn write(&self, area: MemoryArea, address: u16, data: &[u16]) -> Result<()> {
-        let sid = self.next_sid();
-        let cmd = WriteWordCommand::new(self.destination, self.source, sid, area, address, data)?;
+    pub fn write(&self, area: MemoryArea, mut address: u16, data: &[u16]) -> Result<()> {
+        area.check_bounds(address, data.len() as u16)?;
 
-        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
-        response.check_error()?;
+        let mut data_index = 0;
+        let mut count = data.len() as u16;
+
+        while count > 0 {
+            let chunk_size = std::cmp::min(count, MAX_WORDS_PER_COMMAND);
+            let chunk_data = &data[data_index..(data_index + chunk_size as usize)];
+
+            let sid = self.next_sid();
+            let cmd = WriteWordCommand::new(
+                self.destination,
+                self.source,
+                sid,
+                area,
+                address,
+                chunk_data,
+            )?;
+            let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
+            response.check_error()?;
+
+            address += chunk_size;
+            data_index += chunk_size as usize;
+            count -= chunk_size;
+
+            if count > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+
         Ok(())
     }
 
@@ -466,20 +516,39 @@ impl Client {
     /// // Zero out DM100-DM149
     /// client.fill(MemoryArea::DM, 100, 50, 0x0000).unwrap();
     /// ```
-    pub fn fill(&self, area: MemoryArea, address: u16, count: u16, value: u16) -> Result<()> {
-        let sid = self.next_sid();
-        let cmd = FillCommand::new(
-            self.destination,
-            self.source,
-            sid,
-            area,
-            address,
-            count,
-            value,
-        )?;
+    pub fn fill(
+        &self,
+        area: MemoryArea,
+        mut address: u16,
+        mut count: u16,
+        value: u16,
+    ) -> Result<()> {
+        area.check_bounds(address, count)?;
 
-        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
-        response.check_error()?;
+        while count > 0 {
+            let chunk_size = std::cmp::min(count, MAX_WORDS_PER_COMMAND);
+            let sid = self.next_sid();
+            let cmd = FillCommand::new(
+                self.destination,
+                self.source,
+                sid,
+                area,
+                address,
+                chunk_size,
+                value,
+            )?;
+
+            let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
+            response.check_error()?;
+
+            address += chunk_size;
+            count -= chunk_size;
+
+            if count > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+
         Ok(())
     }
 
@@ -574,25 +643,40 @@ impl Client {
     pub fn transfer(
         &self,
         src_area: MemoryArea,
-        src_address: u16,
+        mut src_address: u16,
         dst_area: MemoryArea,
-        dst_address: u16,
-        count: u16,
+        mut dst_address: u16,
+        mut count: u16,
     ) -> Result<()> {
-        let sid = self.next_sid();
-        let cmd = TransferCommand::new(
-            self.destination,
-            self.source,
-            sid,
-            src_area,
-            src_address,
-            dst_area,
-            dst_address,
-            count,
-        )?;
+        src_area.check_bounds(src_address, count)?;
+        dst_area.check_bounds(dst_address, count)?;
 
-        let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
-        response.check_error()?;
+        while count > 0 {
+            let chunk_size = std::cmp::min(count, MAX_WORDS_PER_COMMAND);
+            let sid = self.next_sid();
+            let cmd = TransferCommand::new(
+                self.destination,
+                self.source,
+                sid,
+                src_area,
+                src_address,
+                dst_area,
+                dst_address,
+                chunk_size,
+            )?;
+
+            let response = self.send_receive_with_sid(&cmd.to_bytes(), sid)?;
+            response.check_error()?;
+
+            src_address += chunk_size;
+            dst_address += chunk_size;
+            count -= chunk_size;
+
+            if count > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+
         Ok(())
     }
 

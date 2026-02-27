@@ -42,7 +42,7 @@
 //!
 //! # Constants
 //!
-//! - [`MAX_WORDS_PER_COMMAND`] - Maximum number of words (999) per read/write command
+//! - [`MAX_WORDS_PER_COMMAND`] - Maximum number of words (999) used historically for some Omron models.
 
 use crate::error::{FinsError, Result};
 use crate::header::{FinsHeader, NodeAddress, FINS_HEADER_SIZE};
@@ -75,8 +75,12 @@ pub(crate) const SRC_FORCED_SET_RESET: u8 = 0x01;
 /// Forced Set/Reset Cancel command sub-code (SRC).
 pub(crate) const SRC_FORCED_CANCEL: u8 = 0x02;
 
-/// Maximum number of words that can be read/written in a single command.
-pub const MAX_WORDS_PER_COMMAND: u16 = 999;
+/// Maximum number of words that can be read/written in a single command on older models or standard UDP limits.
+///
+/// Note: The library chunks user requests automatically into blocks of this size or lower
+/// in order to respect standard Ethernet MTU (1500) and avoid UDP fragment dropping.
+/// 700 words = 1400 bytes, which fits safely inside the 1472 byte UDP payload max.
+pub const MAX_WORDS_PER_COMMAND: u16 = 700;
 
 /// Address specification for FINS commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,11 +154,11 @@ impl ReadWordCommand {
     /// * `sid` - Service ID for request/response matching
     /// * `area` - Memory area to read from
     /// * `address` - Starting word address
-    /// * `count` - Number of words to read (1-999)
+    /// * `count` - Number of words to read (1 to maximum area capacity)
     ///
     /// # Errors
     ///
-    /// Returns an error if count is 0 or exceeds MAX_WORDS_PER_COMMAND.
+    /// Returns an error if count is 0 or exceeds the available capacity for the target area.
     ///
     /// # Example
     ///
@@ -184,10 +188,13 @@ impl ReadWordCommand {
                 "must be greater than 0",
             ));
         }
-        if count > MAX_WORDS_PER_COMMAND {
+        if count > area.max_words() {
             return Err(FinsError::invalid_parameter(
                 "count",
-                format!("must not exceed {}", MAX_WORDS_PER_COMMAND),
+                format!(
+                    "must not exceed area capacity of {} words",
+                    area.max_words()
+                ),
             ));
         }
 
@@ -237,11 +244,11 @@ impl WriteWordCommand {
     /// * `sid` - Service ID for request/response matching
     /// * `area` - Memory area to write to
     /// * `word_address` - Starting word address
-    /// * `data` - Words to write (1-999 words)
+    /// * `data` - Words to write (1 to maximum area capacity)
     ///
     /// # Errors
     ///
-    /// Returns an error if data is empty or exceeds MAX_WORDS_PER_COMMAND.
+    /// Returns an error if data is empty or exceeds the available capacity for the target area.
     ///
     /// # Example
     ///
@@ -268,10 +275,13 @@ impl WriteWordCommand {
         if data.is_empty() {
             return Err(FinsError::invalid_parameter("data", "must not be empty"));
         }
-        if data.len() > MAX_WORDS_PER_COMMAND as usize {
+        if data.len() > area.max_words() as usize {
             return Err(FinsError::invalid_parameter(
                 "data",
-                format!("must not exceed {} words", MAX_WORDS_PER_COMMAND),
+                format!(
+                    "must not exceed area capacity of {} words",
+                    area.max_words()
+                ),
             ));
         }
 
@@ -486,12 +496,12 @@ impl FillCommand {
     /// * `sid` - Service ID for request/response matching
     /// * `area` - Memory area to fill
     /// * `word_address` - Starting word address
-    /// * `count` - Number of words to fill (1-999)
+    /// * `count` - Number of words to fill (1 to maximum area capacity)
     /// * `value` - Value to fill with
     ///
     /// # Errors
     ///
-    /// Returns an error if count is 0 or exceeds MAX_WORDS_PER_COMMAND.
+    /// Returns an error if count is 0 or exceeds the available capacity for the target area.
     ///
     /// # Example
     ///
@@ -523,10 +533,13 @@ impl FillCommand {
                 "must be greater than 0",
             ));
         }
-        if count > MAX_WORDS_PER_COMMAND {
+        if count > area.max_words() {
             return Err(FinsError::invalid_parameter(
                 "count",
-                format!("must not exceed {}", MAX_WORDS_PER_COMMAND),
+                format!(
+                    "must not exceed area capacity of {} words",
+                    area.max_words()
+                ),
             ));
         }
 
@@ -706,11 +719,11 @@ impl TransferCommand {
     /// * `src_address` - Source starting address
     /// * `dst_area` - Destination memory area
     /// * `dst_address` - Destination starting address
-    /// * `count` - Number of words to transfer (1-999)
+    /// * `count` - Number of words to transfer (1 to maximum area capacity of the smallest area)
     ///
     /// # Errors
     ///
-    /// Returns an error if count is 0 or exceeds MAX_WORDS_PER_COMMAND.
+    /// Returns an error if count is 0 or exceeds the available capacity of either source or destination.
     ///
     /// # Example
     ///
@@ -745,10 +758,11 @@ impl TransferCommand {
                 "must be greater than 0",
             ));
         }
-        if count > MAX_WORDS_PER_COMMAND {
+        let max_transfer = std::cmp::min(src_area.max_words(), dst_area.max_words());
+        if count > max_transfer {
             return Err(FinsError::invalid_parameter(
                 "count",
-                format!("must not exceed {}", MAX_WORDS_PER_COMMAND),
+                format!("must not exceed area capacity of {} words", max_transfer),
             ));
         }
 
@@ -1122,7 +1136,7 @@ mod tests {
         let result = ReadWordCommand::new(dest, src, 0x01, MemoryArea::DM, 100, 0);
         assert!(result.is_err());
 
-        let result = ReadWordCommand::new(dest, src, 0x01, MemoryArea::DM, 100, 1000);
+        let result = ReadWordCommand::new(dest, src, 0x01, MemoryArea::DM, 100, 4097);
         assert!(result.is_err());
     }
 
@@ -1254,7 +1268,7 @@ mod tests {
         let result = FillCommand::new(dest, src, 0x01, MemoryArea::DM, 100, 0, 0x0000);
         assert!(result.is_err());
 
-        let result = FillCommand::new(dest, src, 0x01, MemoryArea::DM, 100, 1000, 0x0000);
+        let result = FillCommand::new(dest, src, 0x01, MemoryArea::DM, 100, 4097, 0x0000);
         assert!(result.is_err());
     }
 
@@ -1363,7 +1377,7 @@ mod tests {
             100,
             MemoryArea::DM,
             200,
-            1000,
+            4097,
         );
         assert!(result.is_err());
     }

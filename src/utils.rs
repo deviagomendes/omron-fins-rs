@@ -159,8 +159,8 @@ pub fn toggle_bit(value: u16, bit: u8) -> u16 {
 /// ```
 pub fn word_to_bits(value: u16) -> [bool; 16] {
     let mut bits = [false; 16];
-    for i in 0..16 {
-        bits[i] = get_bit(value, i as u8);
+    for (i, bit) in bits.iter_mut().enumerate() {
+        *bit = get_bit(value, i as u8);
     }
     bits
 }
@@ -346,7 +346,7 @@ pub fn format_bits(value: u16) -> String {
 pub fn format_binary(value: u16) -> String {
     let binary = format!("{:016b}", value);
     format!(
-        "0b{}_{}_{}_{}", 
+        "0b{}_{}_{}_{}",
         &binary[0..4],
         &binary[4..8],
         &binary[8..12],

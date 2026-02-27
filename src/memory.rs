@@ -116,6 +116,76 @@ impl MemoryArea {
     pub fn supports_bit_access(self) -> bool {
         !matches!(self, MemoryArea::DM)
     }
+
+    /// Returns the maximum number of words supported by this memory area.
+    ///
+    /// The values represent the common capacities for Omron Ethernet PLCs.
+    /// - CIO: 4096 words
+    /// - WR: 512 words
+    /// - HR: 512 words
+    /// - DM: 4096 words
+    /// - AR: 1024 words
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use omron_fins::MemoryArea;
+    ///
+    /// assert_eq!(MemoryArea::CIO.max_words(), 4096);
+    /// assert_eq!(MemoryArea::WR.max_words(), 512);
+    /// ```
+    pub fn max_words(self) -> u16 {
+        match self {
+            MemoryArea::CIO => 4096,
+            MemoryArea::WR => 512,
+            MemoryArea::HR => 512,
+            MemoryArea::DM => 4096,
+            MemoryArea::AR => 1024,
+        }
+    }
+
+    /// Checks if a read or write operation fits within the memory boundaries.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - Starting word address
+    /// * `count` - Number of words to read/write
+    ///
+    /// # Errors
+    ///
+    /// Returns `FinsError::InvalidParameter` if the requested range exceeds the memory size.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use omron_fins::MemoryArea;
+    ///
+    /// assert!(MemoryArea::CIO.check_bounds(0, 10).is_ok());
+    /// assert!(MemoryArea::WR.check_bounds(500, 20).is_err());
+    /// ```
+    pub fn check_bounds(self, address: u16, count: u16) -> Result<()> {
+        let max = self.max_words();
+        // Check if address + count - 1 exceeds max-1, which simplifies to address + count > max.
+        // Also safeguard against overflow
+        if let Some(end) = address.checked_add(count) {
+            if end > max {
+                return Err(FinsError::invalid_parameter(
+                    "address/count",
+                    format!(
+                        "operation exceeds the maximum {} capacity of {} words (requested: address {} + count {})",
+                        self, max, address, count
+                    ),
+                ));
+            }
+        } else {
+            return Err(FinsError::invalid_parameter(
+                "address/count",
+                "operation address+count causes arithmetic overflow",
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl std::fmt::Display for MemoryArea {
@@ -168,5 +238,29 @@ mod tests {
         assert_eq!(MemoryArea::HR.to_string(), "HR");
         assert_eq!(MemoryArea::DM.to_string(), "DM");
         assert_eq!(MemoryArea::AR.to_string(), "AR");
+    }
+
+    #[test]
+    fn test_max_words() {
+        assert_eq!(MemoryArea::CIO.max_words(), 4096);
+        assert_eq!(MemoryArea::WR.max_words(), 512);
+        assert_eq!(MemoryArea::HR.max_words(), 512);
+        assert_eq!(MemoryArea::DM.max_words(), 4096);
+        assert_eq!(MemoryArea::AR.max_words(), 1024);
+    }
+
+    #[test]
+    fn test_check_bounds() {
+        assert!(MemoryArea::CIO.check_bounds(0, 4096).is_ok());
+        assert!(MemoryArea::CIO.check_bounds(4095, 1).is_ok());
+        assert!(MemoryArea::CIO.check_bounds(4096, 1).is_err());
+        assert!(MemoryArea::CIO.check_bounds(0, 4097).is_err());
+
+        assert!(MemoryArea::WR.check_bounds(0, 512).is_ok());
+        assert!(MemoryArea::WR.check_bounds(500, 12).is_ok());
+        assert!(MemoryArea::WR.check_bounds(500, 13).is_err());
+
+        // Overflow check
+        assert!(MemoryArea::CIO.check_bounds(u16::MAX, 2).is_err());
     }
 }

@@ -211,7 +211,7 @@ impl FinsResponse {
     /// assert_eq!(words, vec![0x1234, 0x5678]);
     /// ```
     pub fn to_words(&self) -> Result<Vec<u16>> {
-        if !self.data.len().is_multiple_of(2) {
+        if self.data.len() % 2 != 0 {
             return Err(FinsError::invalid_response(
                 "data length must be even for word conversion",
             ));
