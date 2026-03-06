@@ -335,7 +335,7 @@ impl Client {
             count -= chunk_size;
 
             if count > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
         }
 
@@ -396,7 +396,7 @@ impl Client {
             count -= chunk_size;
 
             if count > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
         }
 
@@ -545,7 +545,7 @@ impl Client {
             count -= chunk_size;
 
             if count > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
         }
 
@@ -673,7 +673,7 @@ impl Client {
             count -= chunk_size;
 
             if count > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
         }
 

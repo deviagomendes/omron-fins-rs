@@ -1,6 +1,6 @@
 [package]
 name = "omron-fins"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 rust-version = "1.70"
 description = "Omron FINS protocol implementation for communicating with Omron PLCs"
@@ -17,7 +17,12 @@ thiserror = "2"
 
 [dev-dependencies]
 hex = "0.4"
+criterion = "0.5"
 
 [lib]
 name = "omron_fins"
 path = "src/lib.rs"
+
+[[bench]]
+name = "plc_benches"
+harness = false
