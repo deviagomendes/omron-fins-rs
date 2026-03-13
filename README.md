@@ -12,9 +12,11 @@ A Rust library for communicating with Omron PLCs using the FINS protocol.
 - **Deterministic execution** — each call produces exactly 1 request and 1 response
 - **No implicit behavior** — no automatic retry, caching, or reconnection
 - **Complete API** — read, write, fill, run/stop, forced set/reset, transfer, multiple read
+- **Struct Support** — read and write custom structures with automatic 16-bit alignment and Word Swapping
 - **Type-safe** — memory areas as `enum`, never strings
-- **Type helpers** — native support for `f32`, `f64`, `i32`, and ASCII strings
+- **Type helpers** — native support for `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, `f64`, and ASCII strings
 - **Comprehensive error handling** — no `panic!` in public code
+- **Native Node.js Bindings** — high-performance N-API bindings for JavaScript and TypeScript
 
 ## Installation
 
@@ -22,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-omron-fins = "0.4.2"
+omron-fins = "0.5.0"
 ```
 
 ## Quick Start
@@ -247,6 +249,29 @@ client.write_string(MemoryArea::DM, 200, "PRODUCT-001")?;
 let code: String = client.read_string(MemoryArea::DM, 200, 6)?; // 6 words = up to 12 chars
 ```
 
+### Structs and Custom Types
+
+Read and write heterogeneous data structures in a single call. The library handles memory alignment and Omron's **Word Swap** convention for you.
+
+```rust
+use omron_fins::{DataType, PlcValue};
+
+// 1. Write a struct to DM100
+client.write_struct(MemoryArea::DM, 100, vec![
+    PlcValue::Lint(1234567890), // 64-bit signed (8 bytes)
+    PlcValue::Int(100),         // 16-bit signed (2 bytes)
+    PlcValue::Real(3.14159),    // 32-bit float (4 bytes)
+])?;
+
+// 2. Read it back
+let definition = vec![
+    DataType::LINT,
+    DataType::INT,
+    DataType::REAL,
+];
+let data = client.read_struct(MemoryArea::DM, 100, definition)?;
+```
+
 ### Strings
 
 Read and write ASCII strings to PLC memory. Each word stores 2 characters (big-endian).
@@ -270,6 +295,34 @@ println!("Message: {}", message);
 - Strings with odd character count are padded with 0x00
 - Null bytes at the end are automatically trimmed when reading
 - Non-ASCII characters are converted using UTF-8 lossy conversion
+
+## Node.js / Bun Bindings
+
+This library includes native bindings for Node.js powered by [N-API](https://napi.rs/).
+
+### Installation
+
+```bash
+npm install @omron-fins/native
+```
+
+### Example
+
+```javascript
+const { FinsClient } = require('@omron-fins/native');
+
+async function main() {
+  const client = new FinsClient('192.168.1.250', 1, 0);
+  
+  // Read words
+  const data = await client.read('DM', 100, 10);
+  console.log(data);
+
+  // Read Struct
+  const myStruct = await client.readStruct('DM', 200, ['LINT', 'INT', 'REAL']);
+  console.log(myStruct);
+}
+```
 
 ## Advanced Configuration
 

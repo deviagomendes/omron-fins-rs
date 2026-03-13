@@ -193,6 +193,9 @@ pub fn fins_error_description(main_code: u8, sub_code: u8) -> &'static str {
         // Abort errors (0x40)
         (0x40, 0x01) => "Command aborted with ABORT command",
 
+        // Parameter error: No such memory area
+        (0x11, 0x41) => "No such memory area",
+
         // Unknown error
         _ => "Unknown error code",
     }

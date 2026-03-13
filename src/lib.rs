@@ -236,7 +236,11 @@ mod header;
 mod memory;
 mod response;
 mod transport;
+pub mod types;
 pub mod utils;
+
+#[cfg(feature = "napi")]
+mod js_bindings;
 
 // Public re-exports
 pub use client::{Client, ClientConfig};
@@ -250,3 +254,4 @@ pub use header::{FinsHeader, NodeAddress, FINS_HEADER_SIZE};
 pub use memory::MemoryArea;
 pub use response::FinsResponse;
 pub use transport::{UdpTransport, DEFAULT_FINS_PORT, DEFAULT_TIMEOUT, MAX_PACKET_SIZE};
+pub use types::{DataType, PlcValue};

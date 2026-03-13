@@ -65,6 +65,7 @@ use crate::header::NodeAddress;
 use crate::memory::MemoryArea;
 use crate::response::FinsResponse;
 use crate::transport::{UdpTransport, DEFAULT_FINS_PORT, DEFAULT_TIMEOUT};
+use crate::types::{DataType, PlcValue};
 
 /// Configuration for creating a FINS client.
 #[derive(Debug, Clone)]
@@ -934,6 +935,92 @@ impl Client {
             u16::from_be_bytes([bytes[2], bytes[3]]),
             u16::from_be_bytes([bytes[0], bytes[1]]),
         ];
+        self.write(area, address, &words)
+    }
+
+    /// Reads a custom structure from PLC memory based on a set of data types.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to read from
+    /// * `address` - Starting word address
+    /// * `types` - List of data types to read in sequence
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use omron_fins::{Client, ClientConfig, MemoryArea, DataType, PlcValue};
+    /// # use std::net::Ipv4Addr;
+    /// # let client = Client::new(ClientConfig::new(Ipv4Addr::new(127, 0, 0, 1), 1, 10)).unwrap();
+    /// let my_struct = client.read_struct(MemoryArea::DM, 100, vec![
+    ///     DataType::LINT, // 8 bytes
+    ///     DataType::INT,  // 2 bytes
+    ///     DataType::REAL, // 4 bytes
+    /// ]).unwrap();
+    /// ```
+    pub fn read_struct(
+        &self,
+        area: MemoryArea,
+        address: u16,
+        types: Vec<DataType>,
+    ) -> Result<Vec<PlcValue>> {
+        let total_bytes: usize = types.iter().map(|t| (t.size() + 1) & !1).sum(); // Align to 2-byte words
+        let word_count = (total_bytes / 2) as u16;
+
+        let words = self.read(area, address, word_count)?;
+        let mut bytes = Vec::with_capacity(words.len() * 2);
+        for word in words {
+            bytes.extend_from_slice(&word.to_be_bytes());
+        }
+
+        let mut results = Vec::with_capacity(types.len());
+        let mut offset = 0;
+        for data_type in types {
+            let size = data_type.size();
+            let chunk = &bytes[offset..offset + size];
+            results.push(PlcValue::from_plc_bytes(data_type, chunk)?);
+            offset += (size + 1) & !1; // Advance by even bytes
+        }
+
+        Ok(results)
+    }
+
+    /// Writes a custom structure to PLC memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `area` - Memory area to write to
+    /// * `address` - Starting word address
+    /// * `values` - List of values to write in sequence
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use omron_fins::{Client, ClientConfig, MemoryArea, PlcValue};
+    /// # use std::net::Ipv4Addr;
+    /// # let client = Client::new(ClientConfig::new(Ipv4Addr::new(127, 0, 0, 1), 1, 10)).unwrap();
+    /// client.write_struct(MemoryArea::DM, 100, vec![
+    ///     PlcValue::Lint(123456789),
+    ///     PlcValue::Int(100),
+    ///     PlcValue::Real(3.14159),
+    /// ]).unwrap();
+    /// ```
+    pub fn write_struct(&self, area: MemoryArea, address: u16, values: Vec<PlcValue>) -> Result<()> {
+        let mut bytes = Vec::new();
+        for value in values {
+            let val_bytes = value.to_plc_bytes();
+            bytes.extend_from_slice(&val_bytes);
+            // Ensure 16-bit alignment (even bytes)
+            if val_bytes.len() % 2 != 0 {
+                bytes.push(0);
+            }
+        }
+
+        let words: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+            .collect();
+
         self.write(area, address, &words)
     }
 

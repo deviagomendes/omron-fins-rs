@@ -2,3 +2,5 @@ target
 .claude
 Cargo.lock
 .agent
+node_modules
+package-lock.json

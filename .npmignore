@@ -1,0 +1,16 @@
+target/
+src/
+benches/
+examples/
+*.rs
+Cargo.toml
+Cargo.lock
+.git/
+.gitignore
+.claude/
+ARCHITECTURE.md
+CLAUDE.md
+benchmark_analysis.md
+benchmark_analysis.pdf
+edge_functional_guide_final.md
+build.rs
