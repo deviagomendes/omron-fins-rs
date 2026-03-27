@@ -22,7 +22,7 @@ fn main() -> omron_fins::Result<()> {
     // - source_node: This client's node number (typically 1-254)
     // - dest_node: PLC's node number (typically 0 for direct connection)
 
-    let basic_config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
+    let basic_config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 122), 1, 122);
     println!("Basic config created: {:?}", basic_config);
 
     // =========================================================================
@@ -31,7 +31,7 @@ fn main() -> omron_fins::Result<()> {
     //
     // For complex setups (multi-network, custom ports, longer timeouts):
 
-    let advanced_config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0)
+    let advanced_config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 122), 1, 122)
         // Custom port (default is 9600)
         .with_port(9600)
         // Longer timeout for slow networks (default is 2 seconds)

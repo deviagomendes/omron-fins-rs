@@ -310,8 +310,12 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { DEFAULT_FINS_PORT, MAX_PACKET_SIZE, MAX_WORDS_PER_COMMAND, FinsClient, getBit, setBit, toggleBit, wordToBits, bitsToWord, getOnBits, countOnBits, formatBinary, formatHex } = nativeBinding
+const { FinsMemoryArea, FinsDataType, FinsPlcMode, FinsForceSpec, DEFAULT_FINS_PORT, MAX_PACKET_SIZE, MAX_WORDS_PER_COMMAND, FinsClient, getBit, setBit, toggleBit, wordToBits, bitsToWord, getOnBits, countOnBits, formatBinary, formatHex } = nativeBinding
 
+module.exports.FinsMemoryArea = FinsMemoryArea
+module.exports.FinsDataType = FinsDataType
+module.exports.FinsPlcMode = FinsPlcMode
+module.exports.FinsForceSpec = FinsForceSpec
 module.exports.DEFAULT_FINS_PORT = DEFAULT_FINS_PORT
 module.exports.MAX_PACKET_SIZE = MAX_PACKET_SIZE
 module.exports.MAX_WORDS_PER_COMMAND = MAX_WORDS_PER_COMMAND

@@ -20,12 +20,47 @@ A Rust library for communicating with Omron PLCs using the FINS protocol.
 
 ## Installation
 
+### Rust
+
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-omron-fins = "0.5.0"
+omron-fins = "0.6.0"
 ```
+
+### Node.js / Bun
+
+```bash
+npm install @omron-fins/native
+```
+
+```bash
+bun add @omron-fins/native
+```
+
+## Platform Support
+
+### Rust Crate
+
+| Platform | Support |
+|----------|---------|
+| Linux (glibc) | ✅ |
+| macOS (Intel) | ✅ |
+| macOS (Apple Silicon) | ✅ |
+| Windows | ✅ |
+
+### Node.js / Bun Bindings
+
+| Architecture | OS | Binary |
+|--------------|-----|--------|
+| x86_64 | Linux (glibc) | `omron-fins-v{version}-x86_64-unknown-linux-gnu.node` |
+| aarch64 | Linux (glibc) | `omron-fins-v{version}-aarch64-unknown-linux-gnu.node` |
+| x86_64 | Windows | `omron-fins-v{version}-x86_64-pc-windows-msvc.node` |
+| x86_64 | macOS | `omron-fins-v{version}-x86_64-apple-darwin.node` |
+| aarch64 | macOS | `omron-fins-v{version}-aarch64-apple-darwin.node` |
+
+**Note**: For Alpine Linux (musl), build from source using `cargo build --release --features napi --target x86_64-unknown-linux-musl`.
 
 ## Quick Start
 
@@ -309,19 +344,70 @@ npm install @omron-fins/native
 ### Example
 
 ```javascript
-const { FinsClient } = require('@omron-fins/native');
+const { FinsClient, FinsMemoryArea, FinsDataType } = require('@omron-fins/native');
 
 async function main() {
   const client = new FinsClient('192.168.1.250', 1, 0);
-  
+
   // Read words
   const data = await client.read('DM', 100, 10);
   console.log(data);
 
+  // Read with enum
+  const data2 = await client.read(FinsMemoryArea.DM, 100, 10);
+
   // Read Struct
   const myStruct = await client.readStruct('DM', 200, ['LINT', 'INT', 'REAL']);
   console.log(myStruct);
+
+  // Write with typed values
+  await client.writeStruct('DM', 300, [
+    { type: 'LINT', value: '1234567890' },
+    { type: 'INT', value: '100' },
+    { type: 'REAL', value: '3.14159' }
+  ]);
 }
+
+main().catch(console.error);
+```
+
+### TypeScript
+
+```typescript
+import { FinsClient, FinsMemoryArea, FinsDataType } from '@omron-fins/native';
+
+async function main(): Promise<void> {
+  const client = new FinsClient('192.168.1.250', 1, 0, {
+    timeoutMs: 5000,
+    port: 9600
+  });
+
+  const words: number[] = await client.read(FinsMemoryArea.DM, 100, 10);
+  const bit: boolean = await client.readBit(FinsMemoryArea.CIO, 0, 5);
+
+  await client.write(FinsMemoryArea.DM, 200, [0x1234, 0x5678]);
+
+  const temp: number = await client.readF32(FinsMemoryArea.DM, 300);
+
+  const struct = await client.readStruct(FinsMemoryArea.DM, 400, [
+    FinsDataType.LINT,
+    FinsDataType.INT,
+    FinsDataType.REAL
+  ]);
+}
+
+main().catch(console.error);
+```
+
+### Linux Binary Import
+
+For detailed Linux-specific import instructions, including FFI loading and direct binary usage, see [LINUX_GUIDE.md](LINUX_GUIDE.md).
+
+#### Quick Start on Linux
+
+```javascript
+const { FinsClient } = require('@omron-fins/native');
+// Binary is automatically loaded from dist/ based on platform
 ```
 
 ## Advanced Configuration
@@ -631,6 +717,65 @@ assert_eq!(MAX_PACKET_SIZE, 2048);
 // Maximum words per command
 assert_eq!(MAX_WORDS_PER_COMMAND, 999);
 ```
+
+## Build from Source
+
+### Prerequisites
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install -y build-essential curl git
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+**Fedora/RHEL:**
+```bash
+sudo dnf install @Development Tools curl git
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+**macOS:**
+```bash
+xcode-select --install
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+### Build Commands
+
+```bash
+# Clone repository
+git clone https://github.com/deviagomendes/omron-fins-rs.git
+cd omron-fins-rs
+
+# Build npm package (all platforms)
+npm run build
+
+# Build Rust crate only
+cargo build --release
+
+# Build with N-API bindings
+cargo build --release --features napi
+
+# Build for specific target
+cargo build --release --features napi --target x86_64-unknown-linux-gnu
+cargo build --release --features napi --target aarch64-unknown-linux-gnu
+
+# Build for musl (Alpine Linux)
+rustup target add x86_64-unknown-linux-musl
+cargo build --release --features napi --target x86_64-unknown-linux-musl
+```
+
+### Output Locations
+
+| Build Type | Output |
+|------------|--------|
+| npm package | `dist/*.node` |
+| Rust library | `target/release/libomron_fins.{so|dylib|dll}` |
+| N-API bindings | `dist/index.js`, `dist/index.d.ts` |
 
 ## Limitations
 

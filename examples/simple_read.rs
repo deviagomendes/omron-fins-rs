@@ -17,7 +17,7 @@ fn main() -> omron_fins::Result<()> {
     // Connect to PLC
     // =========================================================================
     
-    let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 250), 1, 0);
+    let config = ClientConfig::new(Ipv4Addr::new(192, 168, 1, 122), 1, 122);
     let client = Client::new(config)?;
 
     // =========================================================================

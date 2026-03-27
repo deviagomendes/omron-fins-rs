@@ -12,7 +12,64 @@ use crate::command::{ForceSpec, ForcedBit, MultiReadSpec, PlcMode};
 use crate::memory::MemoryArea;
 use crate::types::{DataType, PlcValue};
 
+// ─── Enums exportados para TypeScript ──────────────────────────────
+
+/// Memory areas supported by Omron PLCs.
+#[napi]
+pub enum FinsMemoryArea {
+    CIO,
+    WR,
+    HR,
+    DM,
+    AR,
+}
+
+/// Data types supported by Omron PLCs.
+#[napi]
+pub enum FinsDataType {
+    USINT,
+    UINT,
+    UDINT,
+    ULINT,
+    SINT,
+    INT,
+    DINT,
+    LINT,
+    REAL,
+    LREAL,
+    WORD,
+    DWORD,
+    LWORD,
+}
+
+/// PLC operating modes.
+#[napi]
+pub enum FinsPlcMode {
+    Debug,
+    Monitor,
+    Run,
+}
+
+/// Force operation specifications.
+#[napi]
+pub enum FinsForceSpec {
+    ForceOn,
+    ForceOff,
+    Release,
+}
+
 // ─── Conversores de Enum ───────────────────────────────────────────
+
+/// Converte FinsMemoryArea para MemoryArea interno.
+fn memory_area_from_enum(area: FinsMemoryArea) -> MemoryArea {
+    match area {
+        FinsMemoryArea::CIO => MemoryArea::CIO,
+        FinsMemoryArea::WR => MemoryArea::WR,
+        FinsMemoryArea::HR => MemoryArea::HR,
+        FinsMemoryArea::DM => MemoryArea::DM,
+        FinsMemoryArea::AR => MemoryArea::AR,
+    }
+}
 
 /// Converte string JS para MemoryArea Rust.
 fn parse_memory_area(area: &str) -> Result<MemoryArea> {
@@ -29,6 +86,23 @@ fn parse_memory_area(area: &str) -> Result<MemoryArea> {
     }
 }
 
+/// Converte FinsMemoryArea ou string para MemoryArea interno.
+fn parse_memory_area_input(area: Either<FinsMemoryArea, String>) -> Result<MemoryArea> {
+    match area {
+        Either::A(enum_area) => Ok(memory_area_from_enum(enum_area)),
+        Either::B(string_area) => parse_memory_area(&string_area),
+    }
+}
+
+/// Converte FinsPlcMode para PlcMode interno.
+fn plc_mode_from_enum(mode: FinsPlcMode) -> PlcMode {
+    match mode {
+        FinsPlcMode::Debug => PlcMode::Debug,
+        FinsPlcMode::Monitor => PlcMode::Monitor,
+        FinsPlcMode::Run => PlcMode::Run,
+    }
+}
+
 /// Converte string JS para PlcMode Rust.
 fn parse_plc_mode(mode: &str) -> Result<PlcMode> {
     match mode.to_lowercase().as_str() {
@@ -42,6 +116,23 @@ fn parse_plc_mode(mode: &str) -> Result<PlcMode> {
     }
 }
 
+/// Converte FinsPlcMode ou string para PlcMode interno.
+fn parse_plc_mode_input(mode: Either<FinsPlcMode, String>) -> Result<PlcMode> {
+    match mode {
+        Either::A(enum_mode) => Ok(plc_mode_from_enum(enum_mode)),
+        Either::B(string_mode) => parse_plc_mode(&string_mode),
+    }
+}
+
+/// Converte FinsForceSpec para ForceSpec interno.
+fn force_spec_from_enum(spec: FinsForceSpec) -> ForceSpec {
+    match spec {
+        FinsForceSpec::ForceOn => ForceSpec::ForceOn,
+        FinsForceSpec::ForceOff => ForceSpec::ForceOff,
+        FinsForceSpec::Release => ForceSpec::Release,
+    }
+}
+
 /// Converte string JS para ForceSpec Rust.
 fn parse_force_spec(spec: &str) -> Result<ForceSpec> {
     match spec.to_lowercase().as_str() {
@@ -52,6 +143,33 @@ fn parse_force_spec(spec: &str) -> Result<ForceSpec> {
             "ForceSpec inválido: '{}'. Valores válidos: force_on, force_off, release",
             spec
         ))),
+    }
+}
+
+/// Converte FinsForceSpec ou string para ForceSpec interno.
+fn parse_force_spec_input(spec: Either<FinsForceSpec, String>) -> Result<ForceSpec> {
+    match spec {
+        Either::A(enum_spec) => Ok(force_spec_from_enum(enum_spec)),
+        Either::B(string_spec) => parse_force_spec(&string_spec),
+    }
+}
+
+/// Converte FinsDataType para DataType interno.
+fn data_type_from_enum(t: FinsDataType) -> DataType {
+    match t {
+        FinsDataType::USINT => DataType::USINT,
+        FinsDataType::UINT => DataType::UINT,
+        FinsDataType::UDINT => DataType::UDINT,
+        FinsDataType::ULINT => DataType::ULINT,
+        FinsDataType::SINT => DataType::SINT,
+        FinsDataType::INT => DataType::INT,
+        FinsDataType::DINT => DataType::DINT,
+        FinsDataType::LINT => DataType::LINT,
+        FinsDataType::REAL => DataType::REAL,
+        FinsDataType::LREAL => DataType::LREAL,
+        FinsDataType::WORD => DataType::WORD,
+        FinsDataType::DWORD => DataType::DWORD,
+        FinsDataType::LWORD => DataType::LWORD,
     }
 }
 
@@ -75,6 +193,14 @@ fn parse_data_type(t: &str) -> Result<DataType> {
     }
 }
 
+/// Converte FinsDataType ou string para DataType interno.
+fn parse_data_type_input(t: Either<FinsDataType, String>) -> Result<DataType> {
+    match t {
+        Either::A(enum_type) => Ok(data_type_from_enum(enum_type)),
+        Either::B(string_type) => parse_data_type(&string_type),
+    }
+}
+
 /// Converte FinsError do Rust para napi::Error do JS.
 fn fins_to_js_error(e: crate::error::FinsError) -> Error {
     Error::from_reason(e.to_string())
@@ -82,59 +208,74 @@ fn fins_to_js_error(e: crate::error::FinsError) -> Error {
 
 // ─── Objetos JS para inputs complexos ──────────────────────────────
 
-/// Especificação de bit forçado (input JS).
+/// Forced bit specification (JS input).
 #[napi(object)]
 pub struct JsForcedBit {
-    /// Área de memória: "CIO", "WR", "HR", "AR"
+    /// Memory area: FinsMemoryArea or string (e.g., "CIO", "WR", "HR", "AR")
     pub area: String,
-    /// Endereço da word
+    /// Word address
     pub address: u16,
-    /// Posição do bit (0-15)
+    /// Bit position (0-15)
     pub bit: u8,
-    /// Especificação: "force_on", "force_off", "release"
+    /// Specification: FinsForceSpec or string (e.g., "force_on", "force_off", "release")
     pub spec: String,
 }
 
-/// Especificação de leitura múltipla (input JS).
+/// Multi-read specification (JS input).
 #[napi(object)]
 pub struct JsMultiReadSpec {
-    /// Área de memória: "CIO", "WR", "HR", "DM", "AR"
+    /// Memory area: FinsMemoryArea or string (e.g., "CIO", "WR", "HR", "DM", "AR")
     pub area: String,
-    /// Endereço da word
+    /// Word address
     pub address: u16,
-    /// Posição do bit (opcional, null/undefined para leitura de word)
+    /// Bit position (optional, null/undefined for word read)
     pub bit: Option<u8>,
 }
 
-/// Representação de um valor do PLC para o JavaScript.
+/// Representation of a PLC value for JavaScript.
 #[napi(object)]
 pub struct JsPlcValue {
-    /// Tipo do dado: "INT", "DINT", "LINT", "REAL", etc.
+    /// Data type: FinsDataType or string (e.g., "INT", "REAL", etc.)
     pub r#type: String,
-    /// Valor (representado como string JSON para evitar problemas de tipos)
+    /// Value (represented as JSON string to avoid type issues)
     pub value: String,
+}
+
+/// Status and configuration of an Omron PLC (JS output).
+#[napi(object)]
+pub struct JsControllerStatus {
+    /// Operating mode: "debug", "monitor", or "run"
+    pub mode: String,
+    /// Indicates if a fatal error exists
+    pub fatal_error: bool,
+    /// Indicates if a non-fatal error exists
+    pub non_fatal_error: bool,
+    /// Raw fatal error flags
+    pub fatal_error_data: u16,
+    /// Raw non-fatal error flags
+    pub non_fatal_error_data: u16,
 }
 
 // ─── Constantes exportadas ─────────────────────────────────────────
 
-/// Porta UDP padrão do protocolo FINS.
+/// Default FINS protocol UDP port.
 #[napi]
 pub const DEFAULT_FINS_PORT: u16 = crate::transport::DEFAULT_FINS_PORT;
 
-/// Tamanho máximo do pacote FINS.
+/// Maximum FINS packet size.
 #[napi]
 pub const MAX_PACKET_SIZE: u16 = crate::transport::MAX_PACKET_SIZE as u16;
 
-/// Máximo de words por comando.
+/// Maximum words per command.
 #[napi]
 pub const MAX_WORDS_PER_COMMAND: u16 = crate::command::MAX_WORDS_PER_COMMAND;
 
 // ─── Cliente FINS (classe principal) ───────────────────────────────
 
-/// Cliente FINS para comunicação com PLCs Omron.
+/// FINS client for communication with Omron PLCs.
 ///
-/// Cada operação gera exatamente 1 request e 1 response UDP.
-/// Sem retries automáticos, caching ou reconexão.
+/// Each operation generates exactly 1 UDP request and 1 UDP response.
+/// No automatic retries, caching, or reconnection.
 #[napi]
 pub struct FinsClient {
     inner: Arc<Client>,
@@ -142,12 +283,12 @@ pub struct FinsClient {
 
 #[napi]
 impl FinsClient {
-    /// Cria um novo cliente FINS.
+    /// Creates a new FINS client.
     ///
-    /// @param host - Endereço IP do PLC (ex: "192.168.1.250")
-    /// @param sourceNode - Número do nó de origem (este cliente)
-    /// @param destNode - Número do nó de destino (o PLC)
-    /// @param options - Opções avançadas (opcional)
+    /// @param host - PLC IP address (e.g., "192.168.1.250")
+    /// @param sourceNode - Source node number (this client)
+    /// @param destNode - Destination node number (the PLC)
+    /// @param options - Advanced options (optional)
     #[napi(constructor)]
     pub fn new(
         host: String,
@@ -191,35 +332,43 @@ impl FinsClient {
 
     // ─── Leitura / Escrita de Words ────────────────────────────────
 
-    /// Lê words da memória do PLC (assíncrono).
+    /// Reads words from PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória ("DM", "CIO", "WR", "HR", "AR")
-    /// @param address - Endereço inicial
-    /// @param count - Quantidade de words para ler (1-999)
-    /// @returns Promise<number[]> - Array de valores u16
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Start address
+    /// @param count - Number of words to read (1-999)
+    /// @returns Promise<number[]> - u16 values array
     #[napi]
-    pub async fn read(&self, area: String, address: u16, count: u16) -> Result<Vec<u32>> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn read(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+        count: u16,
+    ) -> Result<Vec<u32>> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
-        // Executa a operação blocking em uma task separada para não travar a event loop
         let result = tokio::task::spawn_blocking(move || client.read(mem_area, address, count))
             .await
             .map_err(|e| Error::from_reason(format!("Task join error: {}", e)))?
             .map_err(fins_to_js_error)?;
 
-        // Converte u16 para u32 (JS number é seguro para u16)
         Ok(result.into_iter().map(|v| v as u32).collect())
     }
 
-    /// Escreve words na memória do PLC (assíncrono).
+    /// Writes words to PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória ("DM", "CIO", "WR", "HR", "AR")
-    /// @param address - Endereço inicial
-    /// @param data - Array de valores u16 para escrever
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Start address
+    /// @param data - Array of u16 values to write
     #[napi]
-    pub async fn write(&self, area: String, address: u16, data: Vec<u32>) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn write(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+        data: Vec<u32>,
+    ) -> Result<()> {
+        let mem_area = parse_memory_area_input(area)?;
         let words: Vec<u16> = data.into_iter().map(|v| v as u16).collect();
         let client = self.inner.clone();
 
@@ -231,15 +380,20 @@ impl FinsClient {
 
     // ─── Leitura / Escrita de Bits ─────────────────────────────────
 
-    /// Lê um bit da memória do PLC (assíncrono).
+    /// Reads a bit from PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória ("CIO", "WR", "HR", "AR") — DM não suporta bits
-    /// @param address - Endereço da word
-    /// @param bit - Posição do bit (0-15)
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word address
+    /// @param bit - Bit position (0-15)
     /// @returns Promise<boolean>
     #[napi]
-    pub async fn read_bit(&self, area: String, address: u16, bit: u8) -> Result<bool> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn read_bit(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+        bit: u8,
+    ) -> Result<bool> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.read_bit(mem_area, address, bit))
@@ -248,21 +402,21 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Escreve um bit na memória do PLC (assíncrono).
+    /// Writes a bit to PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória ("CIO", "WR", "HR", "AR")
-    /// @param address - Endereço da word
-    /// @param bit - Posição do bit (0-15)
-    /// @param value - Valor do bit (true/false)
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word address
+    /// @param bit - Bit position (0-15)
+    /// @param value - Bit value (true/false)
     #[napi]
     pub async fn write_bit(
         &self,
-        area: String,
+        area: Either<FinsMemoryArea, String>,
         address: u16,
         bit: u8,
         value: bool,
     ) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.write_bit(mem_area, address, bit, value))
@@ -273,21 +427,21 @@ impl FinsClient {
 
     // ─── Fill ──────────────────────────────────────────────────────
 
-    /// Preenche uma região de memória com um valor (assíncrono).
+    /// Fills a memory region with a value (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial
-    /// @param count - Quantidade de words para preencher (1-999)
-    /// @param value - Valor u16 para preencher
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Start address
+    /// @param count - Number of words to fill (1-999)
+    /// @param value - u16 value to fill
     #[napi]
     pub async fn fill(
         &self,
-        area: String,
+        area: Either<FinsMemoryArea, String>,
         address: u16,
         count: u16,
         value: u32,
     ) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+        let mem_area = parse_memory_area_input(area)?;
         let val = value as u16;
         let client = self.inner.clone();
 
@@ -299,24 +453,24 @@ impl FinsClient {
 
     // ─── Transfer ──────────────────────────────────────────────────
 
-    /// Transfere dados de uma área de memória para outra (assíncrono).
+    /// Transfers data from one memory area to another (asynchronous).
     ///
-    /// @param srcArea - Área de memória de origem
-    /// @param srcAddress - Endereço de origem
-    /// @param dstArea - Área de memória de destino
-    /// @param dstAddress - Endereço de destino
-    /// @param count - Quantidade de words para transferir
+    /// @param srcArea - Source memory area (FinsMemoryArea or string)
+    /// @param srcAddress - Source address
+    /// @param dstArea - Destination memory area (FinsMemoryArea or string)
+    /// @param dstAddress - Destination address
+    /// @param count - Number of words to transfer
     #[napi]
     pub async fn transfer(
         &self,
-        src_area: String,
+        src_area: Either<FinsMemoryArea, String>,
         src_address: u16,
-        dst_area: String,
+        dst_area: Either<FinsMemoryArea, String>,
         dst_address: u16,
         count: u16,
     ) -> Result<()> {
-        let src = parse_memory_area(&src_area)?;
-        let dst = parse_memory_area(&dst_area)?;
+        let src = parse_memory_area_input(src_area)?;
+        let dst = parse_memory_area_input(dst_area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -329,12 +483,12 @@ impl FinsClient {
 
     // ─── Run / Stop ────────────────────────────────────────────────
 
-    /// Coloca o PLC em modo de execução (assíncrono).
+    /// Sets the PLC to execution mode (asynchronous).
     ///
-    /// @param mode - Modo: "debug", "monitor" ou "run"
+    /// @param mode - Mode (FinsPlcMode or string: "debug", "monitor", "run")
     #[napi]
-    pub async fn run(&self, mode: String) -> Result<()> {
-        let plc_mode = parse_plc_mode(&mode)?;
+    pub async fn run(&self, mode: Either<FinsPlcMode, String>) -> Result<()> {
+        let plc_mode = parse_plc_mode_input(mode)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.run(plc_mode))
@@ -343,7 +497,7 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Para o PLC (assíncrono).
+    /// Stops the PLC (asynchronous).
     #[napi]
     pub async fn stop(&self) -> Result<()> {
         let client = self.inner.clone();
@@ -356,9 +510,9 @@ impl FinsClient {
 
     // ─── Forced Set/Reset ──────────────────────────────────────────
 
-    /// Força bits ON/OFF no PLC (assíncrono).
+    /// Forces bits ON/OFF in the PLC (asynchronous).
     ///
-    /// @param specs - Array de especificações de bits forçados
+    /// @param specs - Array of forced bit specifications
     #[napi]
     pub async fn forced_set_reset(&self, specs: Vec<JsForcedBit>) -> Result<()> {
         let forced_bits: std::result::Result<Vec<ForcedBit>, Error> = specs
@@ -381,7 +535,7 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Cancela todos os bits forçados no PLC (assíncrono).
+    /// Cancels all forced bits in the PLC (asynchronous).
     #[napi]
     pub async fn forced_set_reset_cancel(&self) -> Result<()> {
         let client = self.inner.clone();
@@ -394,10 +548,10 @@ impl FinsClient {
 
     // ─── Multiple Read ─────────────────────────────────────────────
 
-    /// Lê de múltiplas áreas de memória em uma única requisição (assíncrono).
+    /// Reads from multiple memory areas in a single request (asynchronous).
     ///
-    /// @param specs - Array de especificações de leitura
-    /// @returns Promise<number[]> - Array de valores u16
+    /// @param specs - Array of read specifications
+    /// @returns Promise<number[]> - u16 values array
     #[napi]
     pub async fn read_multiple(&self, specs: Vec<JsMultiReadSpec>) -> Result<Vec<u32>> {
         let read_specs: std::result::Result<Vec<MultiReadSpec>, Error> = specs
@@ -424,14 +578,18 @@ impl FinsClient {
 
     // ─── Type Helpers ──────────────────────────────────────────────
 
-    /// Lê um valor f32 (REAL) de 2 words consecutivas (assíncrono).
+    /// Reads an f32 (REAL) value from 2 consecutive words (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
     /// @returns Promise<number>
     #[napi]
-    pub async fn read_f32(&self, area: String, address: u16) -> Result<f64> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn read_f32(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+    ) -> Result<f64> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         let result =
@@ -440,17 +598,22 @@ impl FinsClient {
                 .map_err(|e| Error::from_reason(format!("Task join error: {}", e)))?
                 .map_err(fins_to_js_error)?;
 
-        Ok(result as f64) // JS number é f64
+        Ok(result as f64)
     }
 
-    /// Escreve um valor f32 (REAL) em 2 words consecutivas (assíncrono).
+    /// Writes an f32 (REAL) value to 2 consecutive words (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param value - Valor f32 para escrever
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param value - f32 value to write
     #[napi]
-    pub async fn write_f32(&self, area: String, address: u16, value: f64) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn write_f32(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+        value: f64,
+    ) -> Result<()> {
+        let mem_area = parse_memory_area_input(area)?;
         let val = value as f32;
         let client = self.inner.clone();
 
@@ -460,14 +623,18 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Lê um valor f64 (LREAL) de 4 words consecutivas (assíncrono).
+    /// Reads an f64 (LREAL) value from 4 consecutive words (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
     /// @returns Promise<number>
     #[napi]
-    pub async fn read_f64(&self, area: String, address: u16) -> Result<f64> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn read_f64(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+    ) -> Result<f64> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.read_f64(mem_area, address))
@@ -476,14 +643,19 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Escreve um valor f64 (LREAL) em 4 words consecutivas (assíncrono).
+    /// Writes an f64 (LREAL) value to 4 consecutive words (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param value - Valor f64 para escrever
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param value - f64 value to write
     #[napi]
-    pub async fn write_f64(&self, area: String, address: u16, value: f64) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn write_f64(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+        value: f64,
+    ) -> Result<()> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.write_f64(mem_area, address, value))
@@ -492,14 +664,18 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Lê um valor i32 (DINT) de 2 words consecutivas (assíncrono).
+    /// Reads an i32 (DINT) value from 2 consecutive words (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
     /// @returns Promise<number>
     #[napi]
-    pub async fn read_i32(&self, area: String, address: u16) -> Result<i32> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn read_i32(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+    ) -> Result<i32> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.read_i32(mem_area, address))
@@ -508,14 +684,19 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Escreve um valor i32 (DINT) em 2 words consecutivas (assíncrono).
+    /// Writes an i32 (DINT) value to 2 consecutive words (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param value - Valor i32 para escrever
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param value - i32 value to write
     #[napi]
-    pub async fn write_i32(&self, area: String, address: u16, value: i32) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+    pub async fn write_i32(
+        &self,
+        area: Either<FinsMemoryArea, String>,
+        address: u16,
+        value: i32,
+    ) -> Result<()> {
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.write_i32(mem_area, address, value))
@@ -526,19 +707,19 @@ impl FinsClient {
 
     // ─── Strings ───────────────────────────────────────────────────
 
-    /// Escreve uma string ASCII na memória do PLC (assíncrono).
+    /// Writes an ASCII string to PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param value - String ASCII para escrever (máximo 1998 caracteres)
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param value - ASCII string
     #[napi]
     pub async fn write_string(
         &self,
-        area: String,
+        area: Either<FinsMemoryArea, String>,
         address: u16,
         value: String,
     ) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.write_string(mem_area, address, &value))
@@ -547,20 +728,20 @@ impl FinsClient {
             .map_err(fins_to_js_error)
     }
 
-    /// Lê uma string ASCII da memória do PLC (assíncrono).
+    /// Reads an ASCII string from PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param wordCount - Quantidade de words para ler (1 word = 2 caracteres)
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param wordCount - Number of words to read (1 word = 2 characters)
     /// @returns Promise<string>
     #[napi]
     pub async fn read_string(
         &self,
-        area: String,
+        area: Either<FinsMemoryArea, String>,
         address: u16,
         word_count: u16,
     ) -> Result<String> {
-        let mem_area = parse_memory_area(&area)?;
+        let mem_area = parse_memory_area_input(area)?;
         let client = self.inner.clone();
 
         tokio::task::spawn_blocking(move || client.read_string(mem_area, address, word_count))
@@ -571,22 +752,22 @@ impl FinsClient {
 
     // ─── Structs ───────────────────────────────────────────────────
 
-    /// Lê uma estrutura da memória do PLC (assíncrono).
+    /// Reads a structure from PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param types - Array de tipos ("INT", "REAL", etc.)
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param types - Array of types (FinsDataType or string)
     /// @returns Promise<JsPlcValue[]>
     #[napi]
     pub async fn read_struct(
         &self,
-        area: String,
+        area: Either<FinsMemoryArea, String>,
         address: u16,
-        types: Vec<String>,
+        types: Vec<Either<FinsDataType, String>>,
     ) -> Result<Vec<JsPlcValue>> {
-        let mem_area = parse_memory_area(&area)?;
+        let mem_area = parse_memory_area_input(area)?;
         let rust_types: std::result::Result<Vec<DataType>, Error> =
-            types.iter().map(|t| parse_data_type(t)).collect();
+            types.iter().map(|t| parse_data_type_input(t.clone())).collect();
         let ts = rust_types?;
         let client = self.inner.clone();
 
@@ -621,19 +802,19 @@ impl FinsClient {
             .collect())
     }
 
-    /// Escreve uma estrutura na memória do PLC (assíncrono).
+    /// Writes a structure to PLC memory (asynchronous).
     ///
-    /// @param area - Área de memória
-    /// @param address - Endereço inicial da word
-    /// @param values - Array de objetos { type: string, value: any }
+    /// @param area - Memory area (FinsMemoryArea or string)
+    /// @param address - Word start address
+    /// @param values - Array of objects { type: string, value: any }
     #[napi]
     pub async fn write_struct(
         &self,
-        area: String,
+        area: Either<FinsMemoryArea, String>,
         address: u16,
         values: Vec<JsPlcValue>,
     ) -> Result<()> {
-        let mem_area = parse_memory_area(&area)?;
+        let mem_area = parse_memory_area_input(area)?;
         let mut rust_values = Vec::with_capacity(values.len());
 
         for v in values {
@@ -684,50 +865,50 @@ impl FinsClient {
 
 // ─── Opções do cliente (objeto JS) ─────────────────────────────────
 
-/// Opções avançadas de configuração do cliente FINS.
+/// Advanced FINS client configuration options.
 #[napi(object)]
 pub struct JsClientOptions {
-    /// Porta UDP (padrão: 9600)
+    /// UDP port (default: 9600)
     pub port: Option<u16>,
-    /// Timeout em milissegundos (padrão: 2000)
+    /// Timeout in milliseconds (default: 2000)
     pub timeout_ms: Option<u32>,
-    /// Número da rede de origem
+    /// Source network number
     pub source_network: Option<u8>,
-    /// Número da unidade de origem
+    /// Source unit number
     pub source_unit: Option<u8>,
-    /// Número da rede de destino
+    /// Destination network number
     pub dest_network: Option<u8>,
-    /// Número da unidade de destino
+    /// Destination unit number
     pub dest_unit: Option<u8>,
 }
 
 // ─── Funções utilitárias ───────────────────────────────────────────
 
-/// Obtém o valor de um bit específico de uma word u16.
+/// Gets the value of a specific bit from a u16 word.
 #[napi]
 pub fn get_bit(value: u32, bit: u8) -> bool {
     crate::utils::get_bit(value as u16, bit)
 }
 
-/// Define o valor de um bit específico em uma word u16.
+/// Sets the value of a specific bit in a u16 word.
 #[napi]
 pub fn set_bit(value: u32, bit: u8, on: bool) -> u32 {
     crate::utils::set_bit(value as u16, bit, on) as u32
 }
 
-/// Alterna o valor de um bit específico em uma word u16.
+/// Toggles the value of a specific bit in a u16 word.
 #[napi]
 pub fn toggle_bit(value: u32, bit: u8) -> u32 {
     crate::utils::toggle_bit(value as u16, bit) as u32
 }
 
-/// Converte uma word u16 em um array de 16 booleanos.
+/// Converts a u16 word into an array of 16 booleans.
 #[napi]
 pub fn word_to_bits(value: u32) -> Vec<bool> {
     crate::utils::word_to_bits(value as u16).to_vec()
 }
 
-/// Converte um array de booleanos para uma word u16.
+/// Converts an array of booleans to a u16 word.
 #[napi]
 pub fn bits_to_word(bits: Vec<bool>) -> u32 {
     let mut arr = [false; 16];
@@ -737,7 +918,7 @@ pub fn bits_to_word(bits: Vec<bool>) -> u32 {
     crate::utils::bits_to_word(&arr) as u32
 }
 
-/// Retorna indices dos bits que estão ON em uma word.
+/// Returns indices of bits that are ON in a word.
 #[napi]
 pub fn get_on_bits(value: u32) -> Vec<u32> {
     crate::utils::get_on_bits(value as u16)
@@ -746,19 +927,19 @@ pub fn get_on_bits(value: u32) -> Vec<u32> {
         .collect()
 }
 
-/// Conta quantos bits estão ON em uma word.
+/// Counts how many bits are ON in a word.
 #[napi]
 pub fn count_on_bits(value: u32) -> u32 {
     crate::utils::count_on_bits(value as u16)
 }
 
-/// Formata uma word como string binária (ex: "0b1010_0101_1100_0011").
+/// Formats a word as a binary string (e.g., "0b1010_0101_1100_0011").
 #[napi]
 pub fn format_binary(value: u32) -> String {
     crate::utils::format_binary(value as u16)
 }
 
-/// Formata uma word como string hexadecimal (ex: "0xA5C3").
+/// Formats a word as a hexadecimal string (e.g., "0xA5C3").
 #[napi]
 pub fn format_hex(value: u32) -> String {
     crate::utils::format_hex(value as u16)
